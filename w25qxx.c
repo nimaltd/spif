@@ -132,33 +132,63 @@ bool	W25qxx_Init(void)
 	{
 		case 0x401A:	// 	w25q512
 			w25qxx.ID=W25Q512;
+			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.BlockSize=1024;
+			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4019:	// 	w25q256
 			w25qxx.ID=W25Q256;
+			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.BlockSize=512;
+			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4018:	// 	w25q128
 			w25qxx.ID=W25Q128;
+			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.BlockSize=256;
+			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4017:	//	w25q64
 			w25qxx.ID=W25Q64;
+			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.BlockSize=128;
+			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4016:	//	w25q32
 			w25qxx.ID=W25Q32;
+			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.BlockSize=64;
+			w25qxx.SectorCount=w25qxx.BlockSize*16;	
 		break;
 		case 0x4015:	//	w25q16
 			w25qxx.ID=W25Q16;
+			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.BlockSize=32;
+			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4014:	//	w25q80
 			w25qxx.ID=W25Q80;
+			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.BlockSize=16;
+			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4013:	//	w25q40
 			w25qxx.ID=W25Q40;
+			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.BlockSize=8;
+			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4012:	//	w25q20
 			w25qxx.ID=W25Q20;
+			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.BlockSize=4;
+			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4011:	//	w25q10
 			w25qxx.ID=W25Q10;
+			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.BlockSize=2;
+			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		default:
 			return false;
@@ -184,6 +214,8 @@ void W25qxx_ReadBuffer(uint8_t* pBuffer, uint32_t ReadAddr, uint16_t NumByteToRe
 {
 	HAL_GPIO_WritePin(_W25QXX_CS_GPIO,_W25QXX_CS_PIN,GPIO_PIN_RESET);
   W25qxx_Spi(0x03);
+	if(w25qxx.ID>=W25Q256)
+		W25qxx_Spi((ReadAddr & 0xFF000000) >> 24);
   W25qxx_Spi((ReadAddr & 0xFF0000) >> 16);
   W25qxx_Spi((ReadAddr& 0xFF00) >> 8);
   W25qxx_Spi(ReadAddr & 0xFF);
@@ -200,6 +232,8 @@ void W25qxx_WritePage(uint8_t* pBuffer, uint32_t WriteAddr, uint16_t NumByteToWr
   W25qxx_WriteEnable();
   HAL_GPIO_WritePin(_W25QXX_CS_GPIO,_W25QXX_CS_PIN,GPIO_PIN_RESET);
   W25qxx_Spi(0x02);
+	if(w25qxx.ID>=W25Q256)
+		W25qxx_Spi((WriteAddr & 0xFF000000) >> 24);
   W25qxx_Spi((WriteAddr & 0xFF0000) >> 16);
   W25qxx_Spi((WriteAddr & 0xFF00) >> 8);
   W25qxx_Spi(WriteAddr & 0xFF);
@@ -215,10 +249,10 @@ void W25qxx_WritePage(uint8_t* pBuffer, uint32_t WriteAddr, uint16_t NumByteToWr
 void W25qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint16_t NumByteToWrite)
 {
   uint8_t NumOfPage = 0, NumOfSingle = 0, Addr = 0, count = 0, temp = 0;
-  Addr = WriteAddr % 0x1000;
-  count = 0x1000 - Addr;
-  NumOfPage =  NumByteToWrite / 0x1000;
-  NumOfSingle = NumByteToWrite % 0x1000;
+  Addr = WriteAddr % w25qxx.SectorSize;
+  count = w25qxx.SectorSize - Addr;
+  NumOfPage =  NumByteToWrite / w25qxx.SectorSize;
+  NumOfSingle = NumByteToWrite % w25qxx.SectorSize;
   if (Addr == 0) 
   {
     if (NumOfPage == 0)
@@ -229,9 +263,9 @@ void W25qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint16_t NumByteTo
     {
       while (NumOfPage--)
       {
-        W25qxx_WritePage(pBuffer, WriteAddr, 0x1000);
-        WriteAddr +=  0x1000;
-        pBuffer += 0x1000;
+        W25qxx_WritePage(pBuffer, WriteAddr, w25qxx.SectorSize);
+        WriteAddr +=  w25qxx.SectorSize;
+        pBuffer += w25qxx.SectorSize;
       }
 
       W25qxx_WritePage(pBuffer, WriteAddr, NumOfSingle);
@@ -257,16 +291,16 @@ void W25qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint16_t NumByteTo
     else 
     {
       NumByteToWrite -= count;
-      NumOfPage =  NumByteToWrite / 0x1000;
-      NumOfSingle = NumByteToWrite % 0x1000;
+      NumOfPage =  NumByteToWrite / w25qxx.SectorSize;
+      NumOfSingle = NumByteToWrite % w25qxx.SectorSize;
       W25qxx_WritePage(pBuffer, WriteAddr, count);
       WriteAddr +=  count;
       pBuffer += count;
       while (NumOfPage--)
       {
-        W25qxx_WritePage(pBuffer, WriteAddr, 0x1000);
-        WriteAddr +=  0x1000;
-        pBuffer += 0x1000;
+        W25qxx_WritePage(pBuffer, WriteAddr, w25qxx.SectorSize);
+        WriteAddr +=  w25qxx.SectorSize;
+        pBuffer += w25qxx.SectorSize;
       }
       if (NumOfSingle != 0)
       {
@@ -281,6 +315,8 @@ void W25qxx_EraseSector(uint32_t SectorAddr)
   W25qxx_WriteEnable();
   HAL_GPIO_WritePin(_W25QXX_CS_GPIO,_W25QXX_CS_PIN,GPIO_PIN_RESET);
   W25qxx_Spi(0x20);
+	if(w25qxx.ID>=W25Q256)
+		W25qxx_Spi((SectorAddr & 0xFF000000) >> 24);
   W25qxx_Spi((SectorAddr & 0xFF0000) >> 16);
   W25qxx_Spi((SectorAddr & 0xFF00) >> 8);
   W25qxx_Spi(SectorAddr & 0xFF);
@@ -293,6 +329,8 @@ void W25qxx_EraseBlock(uint32_t BlockAddr)
   W25qxx_WriteEnable();
   HAL_GPIO_WritePin(_W25QXX_CS_GPIO,_W25QXX_CS_PIN,GPIO_PIN_RESET);
   W25qxx_Spi(0xD8);
+	if(w25qxx.ID>=W25Q256)
+		W25qxx_Spi((BlockAddr & 0xFF000000) >> 24);
   W25qxx_Spi((BlockAddr & 0xFF0000) >> 16);
   W25qxx_Spi((BlockAddr & 0xFF00) >> 8);
   W25qxx_Spi(BlockAddr & 0xFF);
