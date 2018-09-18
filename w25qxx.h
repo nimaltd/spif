@@ -25,8 +25,9 @@ typedef struct
 	W25QXX_ID_t	ID;
 	uint8_t			UniqID[8];
 	uint16_t		SectorSize;
-	uint16_t		BlockSize;
+	uint16_t		BlockCount;
 	uint16_t		SectorCount;
+	uint16_t		CapacityInKiloByte;
 	
 	uint8_t	StatusRegister1;
 	uint8_t	StatusRegister2;
