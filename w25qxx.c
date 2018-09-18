@@ -132,61 +132,61 @@ bool	W25qxx_Init(void)
 	{
 		case 0x401A:	// 	w25q512
 			w25qxx.ID=W25Q512;
-			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.SectorSize=0x1000;
 			w25qxx.BlockSize=1024;
 			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4019:	// 	w25q256
 			w25qxx.ID=W25Q256;
-			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.SectorSize=0x1000;
 			w25qxx.BlockSize=512;
 			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4018:	// 	w25q128
 			w25qxx.ID=W25Q128;
-			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.SectorSize=0x1000;
 			w25qxx.BlockSize=256;
 			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4017:	//	w25q64
 			w25qxx.ID=W25Q64;
-			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.SectorSize=0x1000;
 			w25qxx.BlockSize=128;
 			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4016:	//	w25q32
 			w25qxx.ID=W25Q32;
-			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.SectorSize=0x1000;
 			w25qxx.BlockSize=64;
 			w25qxx.SectorCount=w25qxx.BlockSize*16;	
 		break;
 		case 0x4015:	//	w25q16
 			w25qxx.ID=W25Q16;
-			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.SectorSize=0x1000;
 			w25qxx.BlockSize=32;
 			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4014:	//	w25q80
 			w25qxx.ID=W25Q80;
-			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.SectorSize=0x1000;
 			w25qxx.BlockSize=16;
 			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4013:	//	w25q40
 			w25qxx.ID=W25Q40;
-			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.SectorSize=0x1000;
 			w25qxx.BlockSize=8;
 			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4012:	//	w25q20
 			w25qxx.ID=W25Q20;
-			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.SectorSize=0x1000;
 			w25qxx.BlockSize=4;
 			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
 		case 0x4011:	//	w25q10
 			w25qxx.ID=W25Q10;
-			w25qxx.SectorSize=w25qxx.SectorSize;
+			w25qxx.SectorSize=0x1000;
 			w25qxx.BlockSize=2;
 			w25qxx.SectorCount=w25qxx.BlockSize*16;
 		break;
