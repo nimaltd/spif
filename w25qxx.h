@@ -24,12 +24,15 @@ typedef struct
 {
 	W25QXX_ID_t	ID;
 	uint8_t			UniqID[8];
+
 	uint16_t    PageSize;
-	uint16_t		SectorSize;
-	uint16_t		BlockCount;
-	uint16_t		SectorCount;
 	uint32_t		PageCount;
-	uint16_t		CapacityInKiloByte;
+	uint32_t		SectorSize;
+	uint32_t		SectorCount;
+	uint32_t		BlockSize;
+	uint32_t		BlockCount;
+
+	uint32_t		CapacityInKiloByte;
 	
 	uint8_t	StatusRegister1;
 	uint8_t	StatusRegister2;
@@ -48,13 +51,13 @@ void 	W25qxx_EraseBlock(uint32_t BlockAddr);
 void 	W25qxx_WriteByte	(uint8_t pBuffer	,uint32_t Bytes_Address);
 void 	W25qxx_WritePage	(uint8_t *pBuffer	,uint32_t Page_Address		,uint32_t NumByteToWrite_up_to_PageSize);
 void 	W25qxx_WriteSector(uint8_t *pBuffer	,uint32_t Sector_Address	,uint32_t NumByteToWrite_up_to_SectorSize);
-//void 	W25qxx_WriteBlock	(uint8_t* pBuffer ,uint32_t Block_Address		,uint32_t	NumByteToWrite_up_to_BlockSize);
+void 	W25qxx_WriteBlock	(uint8_t* pBuffer ,uint32_t Block_Address		,uint32_t	NumByteToWrite_up_to_BlockSize);
 
 void 	W25qxx_ReadByte		(uint8_t *pBuffer	,uint32_t Bytes_Address);
 void 	W25qxx_ReadBytes	(uint8_t *pBuffer	,uint32_t ReadAddr				,uint32_t NumByteToRead);
-void 	W25qxx_ReadPage	  (uint8_t *pBuffer	,uint32_t Page_Address		,uint32_t NumByteToWrite_up_to_PageSize);
-void 	W25qxx_ReadSector (uint8_t *pBuffer	,uint32_t Sector_Address	,uint32_t NumByteToWrite_up_to_SectorSize);
-//void 	W25qxx_ReadBlock	(uint8_t* pBuffer ,uint32_t Block_Address		,uint32_t	NumByteToWrite_up_to_BlockSize);
+void 	W25qxx_ReadPage	  (uint8_t *pBuffer	,uint32_t Page_Address		,uint32_t NumByteToRead_up_to_PageSize);
+void 	W25qxx_ReadSector (uint8_t *pBuffer	,uint32_t Sector_Address	,uint32_t NumByteToRead_up_to_SectorSize);
+void 	W25qxx_ReadBlock	(uint8_t* pBuffer ,uint32_t Block_Address		,uint32_t	NumByteToRead_up_to_BlockSize);
 //############################################################################
 #endif
 
