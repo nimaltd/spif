@@ -41,6 +41,8 @@ typedef struct
 	uint8_t	StatusRegister2;
 	uint8_t	StatusRegister3;
 	
+	uint8_t	Lock;
+	
 }w25qxx_t;
 
 extern w25qxx_t	w25qxx;
