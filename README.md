@@ -7,15 +7,17 @@ I use Stm32f407vg and Keil Compiler and Stm32CubeMX wizard.
 Please Do This ...
 <br />
 <br />
-1) Select "General peripheral Initalizion as a pair of '.c/.h' file per peripheral" on project settings.
+1) Enable SPI and a Gpio as output(CS pin).Connect WP and HOLD to VCC.
 <br />
-2) Config "w25qxxconif.h".
+2) Select "General peripheral Initalizion as a pair of '.c/.h' file per peripheral" on project settings.
 <br />
-3) Call W25qxx_Init(). 
+3) Config "w25qxxconif.h".
 <br />
-4) After init, you can watch w25qxx struct.(Chip ID,page size,sector size and ...)
+4) Call W25qxx_Init(). 
 <br />
-5) In Read/Write Function, you can put 0 to "NumByteToRead/NumByteToWrite" parameter to maximum.
+5) After init, you can watch w25qxx struct.(Chip ID,page size,sector size and ...)
 <br />
-6) Dont forget to erase page/sector/block before write.
+6) In Read/Write Function, you can put 0 to "NumByteToRead/NumByteToWrite" parameter to maximum.
+<br />
+7) Dont forget to erase page/sector/block before write.
 
