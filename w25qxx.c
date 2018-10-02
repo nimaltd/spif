@@ -325,6 +325,21 @@ void W25qxx_EraseBlock(uint32_t BlockAddr)
 	w25qxx.Lock=0;
 }
 //###################################################################################################################
+uint32_t	W25qxx_PageToSector(uint32_t	PageAddress)
+{
+	return ((PageAddress*w25qxx.PageSize)/w25qxx.SectorSize);
+}
+//###################################################################################################################
+uint32_t	W25qxx_PageToBlock(uint32_t	PageAddress)
+{
+	return ((PageAddress*w25qxx.PageSize)/w25qxx.BlockSize);
+}
+//###################################################################################################################
+uint32_t	W25qxx_SectorToBlock(uint32_t	SectorAddress)
+{
+	return ((SectorAddress*w25qxx.SectorSize)/w25qxx.BlockSize);
+}
+//###################################################################################################################
 bool 	W25qxx_IsEmptyPage(uint32_t Page_Address,uint32_t OffsetInByte,uint32_t NumByteToCheck_up_to_PageSize)
 {
 	while(w25qxx.Lock==1)

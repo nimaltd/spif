@@ -55,6 +55,11 @@ void	W25qxx_EraseChip(void);
 void 	W25qxx_EraseSector(uint32_t SectorAddr);
 void 	W25qxx_EraseBlock(uint32_t BlockAddr);
 
+uint32_t	W25qxx_PageToSector(uint32_t	PageAddress);
+uint32_t	W25qxx_PageToBlock(uint32_t	PageAddress);
+uint32_t	W25qxx_SectorToBlock(uint32_t	SectorAddress);
+
+bool 	W25qxx_IsEmptyPage(uint32_t Page_Address,uint32_t OffsetInByte,uint32_t NumByteToCheck_up_to_PageSize);
 bool 	W25qxx_IsEmptySector(uint32_t Sector_Address,uint32_t OffsetInByte,uint32_t NumByteToCheck_up_to_SectorSize);
 bool 	W25qxx_IsEmptyBlock(uint32_t Block_Address,uint32_t OffsetInByte,uint32_t NumByteToCheck_up_to_BlockSize);
 
