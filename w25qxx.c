@@ -630,7 +630,7 @@ void 	W25qxx_WriteSector(uint8_t *pBuffer	,uint32_t Sector_Address,uint32_t Offs
 	uint32_t	pageEnd=(Sector_Address*w25qxx.SectorSize/w25qxx.PageSize)+((OffsetInByte+NumByteToWrite_up_to_SectorSize)/w25qxx.PageSize);
 	uint32_t	LocalOffset=OffsetInByte%w25qxx.PageSize;	
 	uint32_t	Bytes=0;
-	for(uint16_t	Page=pageStart; Page<=pageEnd ; Page++ )
+	for(uint16_t	Page=pageStart; Page<pageEnd ; Page++ )
 	{
 		if((NumByteToWrite_up_to_SectorSize%w25qxx.PageSize == 0) && (NumByteToWrite_up_to_SectorSize/w25qxx.PageSize>0))
 			Bytes = w25qxx.PageSize;
@@ -661,7 +661,7 @@ void 	W25qxx_WriteBlock	(uint8_t* pBuffer ,uint32_t Block_Address	,uint32_t Offs
 	uint32_t	pageEnd=(Block_Address*w25qxx.BlockSize/w25qxx.PageSize)+((OffsetInByte+NumByteToWrite_up_to_BlockSize)/w25qxx.PageSize);
 	uint32_t	LocalOffset=OffsetInByte%w25qxx.PageSize;	
 	uint32_t	Bytes=0;
-	for(uint16_t	Page=pageStart; Page<=pageEnd ; Page++ )
+	for(uint16_t	Page=pageStart; Page<pageEnd ; Page++ )
 	{
 		if((NumByteToWrite_up_to_BlockSize%w25qxx.PageSize == 0) && (NumByteToWrite_up_to_BlockSize/w25qxx.PageSize>0))
 			Bytes = w25qxx.PageSize;
@@ -800,7 +800,7 @@ void 	W25qxx_ReadSector(uint8_t *pBuffer,uint32_t Sector_Address,uint32_t Offset
 
 	uint32_t	LocalOffset=OffsetInByte%w25qxx.PageSize;	
 	uint32_t	Bytes=0;
-	for(uint16_t	Page=pageStart; Page<=pageEnd ; Page++ )
+	for(uint16_t	Page=pageStart; Page<pageEnd ; Page++ )
 	{
 		if((NumByteToRead_up_to_SectorSize%w25qxx.PageSize == 0) && (NumByteToRead_up_to_SectorSize/w25qxx.PageSize>0))
 			Bytes = w25qxx.PageSize;
@@ -831,7 +831,7 @@ void 	W25qxx_ReadBlock(uint8_t* pBuffer,uint32_t Block_Address,uint32_t OffsetIn
 	uint32_t	pageEnd=(Block_Address*w25qxx.BlockSize/w25qxx.PageSize)+((OffsetInByte+NumByteToRead_up_to_BlockSize)/w25qxx.PageSize);
 	uint32_t	LocalOffset=OffsetInByte%w25qxx.PageSize;	
 	uint32_t	Bytes=0;
-	for(uint16_t	Page=pageStart; Page<=pageEnd ; Page++ )
+	for(uint16_t	Page=pageStart; Page<pageEnd ; Page++ )
 	{
 		if((NumByteToRead_up_to_BlockSize%w25qxx.PageSize == 0) && (NumByteToRead_up_to_BlockSize/w25qxx.PageSize>0))
 			Bytes = w25qxx.PageSize;
