@@ -751,7 +751,7 @@ void 	W25qxx_ReadPage(uint8_t *pBuffer,uint32_t Page_Address,uint32_t OffsetInBy
 	if((NumByteToRead_up_to_PageSize>w25qxx.PageSize)||(NumByteToRead_up_to_PageSize==0))
 		NumByteToRead_up_to_PageSize=w25qxx.PageSize;
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx ReadPage:%d, Offset:%d ,Writes %d Bytes, begin...\r\n",Page_Address,OffsetInByte,NumByteToRead_up_to_PageSize);
+	printf("w25qxx ReadPage:%d, Offset:%d ,Read %d Bytes, begin...\r\n",Page_Address,OffsetInByte,NumByteToRead_up_to_PageSize);
 	W25qxx_Delay(100);
 	uint32_t	StartTime=HAL_GetTick();
 	#endif	
@@ -791,7 +791,7 @@ void 	W25qxx_ReadSector(uint8_t *pBuffer,uint32_t Sector_Address,uint32_t Offset
 		NumByteToRead_up_to_SectorSize=w25qxx.SectorSize;
 
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx ReadSector:%d, Offset:%d ,Writes %d Bytes, begin...\r\n",Sector_Address,OffsetInByte,NumByteToRead_up_to_SectorSize);
+	printf("w25qxx ReadSector:%d, Offset:%d ,Read %d Bytes, begin...\r\n",Sector_Address,OffsetInByte,NumByteToRead_up_to_SectorSize);
 	W25qxx_Delay(100);
 	#endif	
 	
@@ -824,7 +824,7 @@ void 	W25qxx_ReadBlock(uint8_t* pBuffer,uint32_t Block_Address,uint32_t OffsetIn
 	if((NumByteToRead_up_to_BlockSize>w25qxx.BlockSize)||(NumByteToRead_up_to_BlockSize==0))
 		NumByteToRead_up_to_BlockSize=w25qxx.BlockSize;
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx ReadBlock:%d, Offset:%d ,Writes %d Bytes, begin...\r\n",Block_Address,OffsetInByte,NumByteToRead_up_to_BlockSize);
+	printf("w25qxx ReadBlock:%d, Offset:%d ,Read %d Bytes, begin...\r\n",Block_Address,OffsetInByte,NumByteToRead_up_to_BlockSize);
 	W25qxx_Delay(100);
 	#endif	
 	uint32_t	pageStart=(Block_Address*w25qxx.BlockSize/w25qxx.PageSize)+(OffsetInByte/w25qxx.PageSize);
