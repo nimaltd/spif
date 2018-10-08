@@ -11,7 +11,7 @@ Please Do This ...
 <br />
 2) Select "General peripheral Initalizion as a pair of '.c/.h' file per peripheral" on project settings.
 <br />
-3) Config "w25qxxconif.h".
+3) Config "w25qxxConig.h".
 <br />
 4) Call W25qxx_Init(). 
 <br />
