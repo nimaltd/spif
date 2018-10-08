@@ -635,13 +635,13 @@ void 	W25qxx_WriteSector(uint8_t *pBuffer	,uint32_t Sector_Address,uint32_t Offs
 	if((NumByteToWrite_up_to_SectorSize>w25qxx.SectorSize)||(NumByteToWrite_up_to_SectorSize==0))
 		NumByteToWrite_up_to_SectorSize=w25qxx.SectorSize;
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx WriteSector:%d, Offset:%d ,Write %d Bytes, begin...\r\n",Sector_Address,OffsetInByte,NumByteToWrite_up_to_SectorSize);
+	printf("+++w25qxx WriteSector:%d, Offset:%d ,Write %d Bytes, begin...\r\n",Sector_Address,OffsetInByte,NumByteToWrite_up_to_SectorSize);
 	W25qxx_Delay(100);
 	#endif	
 	if(OffsetInByte>=w25qxx.SectorSize)
 	{
 		#if (_W25QXX_DEBUG==1)
-		printf("w25qxx WriteSector Faild!\r\n");
+		printf("---w25qxx WriteSector Faild!\r\n");
 		W25qxx_Delay(100);
 		#endif	
 		return;
@@ -664,7 +664,7 @@ void 	W25qxx_WriteSector(uint8_t *pBuffer	,uint32_t Sector_Address,uint32_t Offs
 		LocalOffset=0;
 	}while(BytesToWrite>0);		
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx WriteSector Done\r\n");
+	printf("---w25qxx WriteSector Done\r\n");
 	W25qxx_Delay(100);
 	#endif	
 }
@@ -674,13 +674,13 @@ void 	W25qxx_WriteBlock	(uint8_t* pBuffer ,uint32_t Block_Address	,uint32_t Offs
 	if((NumByteToWrite_up_to_BlockSize>w25qxx.BlockSize)||(NumByteToWrite_up_to_BlockSize==0))
 		NumByteToWrite_up_to_BlockSize=w25qxx.BlockSize;
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx WriteBlock:%d, Offset:%d ,Write %d Bytes, begin...\r\n",Block_Address,OffsetInByte,NumByteToWrite_up_to_BlockSize);
+	printf("+++w25qxx WriteBlock:%d, Offset:%d ,Write %d Bytes, begin...\r\n",Block_Address,OffsetInByte,NumByteToWrite_up_to_BlockSize);
 	W25qxx_Delay(100);
 	#endif	
 	if(OffsetInByte>=w25qxx.BlockSize)
 	{
 		#if (_W25QXX_DEBUG==1)
-		printf("w25qxx WriteBlock Faild!\r\n");
+		printf("---w25qxx WriteBlock Faild!\r\n");
 		W25qxx_Delay(100);
 		#endif	
 		return;
@@ -696,14 +696,14 @@ void 	W25qxx_WriteBlock	(uint8_t* pBuffer ,uint32_t Block_Address	,uint32_t Offs
 	LocalOffset = OffsetInByte%w25qxx.PageSize;	
 	do
 	{		
-		W25qxx_ReadPage(pBuffer,StartPage,LocalOffset,BytesToWrite);
+		W25qxx_WritePage(pBuffer,StartPage,LocalOffset,BytesToWrite);
 		StartPage++;
 		BytesToWrite-=w25qxx.PageSize-LocalOffset;
 		pBuffer+=w25qxx.PageSize;	
 		LocalOffset=0;
 	}while(BytesToWrite>0);		
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx WriteBlock Done\r\n");
+	printf("---w25qxx WriteBlock Done\r\n");
 	W25qxx_Delay(100);
 	#endif	
 }
@@ -820,13 +820,13 @@ void 	W25qxx_ReadSector(uint8_t *pBuffer,uint32_t Sector_Address,uint32_t Offset
 	if((NumByteToRead_up_to_SectorSize>w25qxx.SectorSize)||(NumByteToRead_up_to_SectorSize==0))
 		NumByteToRead_up_to_SectorSize=w25qxx.SectorSize;
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx ReadSector:%d, Offset:%d ,Read %d Bytes, begin...\r\n",Sector_Address,OffsetInByte,NumByteToRead_up_to_SectorSize);
+	printf("+++w25qxx ReadSector:%d, Offset:%d ,Read %d Bytes, begin...\r\n",Sector_Address,OffsetInByte,NumByteToRead_up_to_SectorSize);
 	W25qxx_Delay(100);
 	#endif	
 	if(OffsetInByte>=w25qxx.SectorSize)
 	{
 		#if (_W25QXX_DEBUG==1)
-		printf("w25qxx ReadSector Faild!\r\n");
+		printf("---w25qxx ReadSector Faild!\r\n");
 		W25qxx_Delay(100);
 		#endif	
 		return;
@@ -849,7 +849,7 @@ void 	W25qxx_ReadSector(uint8_t *pBuffer,uint32_t Sector_Address,uint32_t Offset
 		LocalOffset=0;
 	}while(BytesToRead>0);		
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx ReadSector Done\r\n");
+	printf("---w25qxx ReadSector Done\r\n");
 	W25qxx_Delay(100);
 	#endif	
 }
@@ -859,7 +859,7 @@ void 	W25qxx_ReadBlock(uint8_t* pBuffer,uint32_t Block_Address,uint32_t OffsetIn
 	if((NumByteToRead_up_to_BlockSize>w25qxx.BlockSize)||(NumByteToRead_up_to_BlockSize==0))
 		NumByteToRead_up_to_BlockSize=w25qxx.BlockSize;
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx ReadBlock:%d, Offset:%d ,Read %d Bytes, begin...\r\n",Block_Address,OffsetInByte,NumByteToRead_up_to_BlockSize);
+	printf("+++w25qxx ReadBlock:%d, Offset:%d ,Read %d Bytes, begin...\r\n",Block_Address,OffsetInByte,NumByteToRead_up_to_BlockSize);
 	W25qxx_Delay(100);
 	#endif	
 	if(OffsetInByte>=w25qxx.BlockSize)
@@ -888,7 +888,7 @@ void 	W25qxx_ReadBlock(uint8_t* pBuffer,uint32_t Block_Address,uint32_t OffsetIn
 		LocalOffset=0;
 	}while(BytesToRead>0);		
 	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx ReadBlock Done\r\n");
+	printf("---w25qxx ReadBlock Done\r\n");
 	W25qxx_Delay(100);
 	#endif	
 }
