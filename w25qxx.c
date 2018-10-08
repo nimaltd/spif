@@ -340,6 +340,16 @@ uint32_t	W25qxx_SectorToBlock(uint32_t	SectorAddress)
 	return ((SectorAddress*w25qxx.SectorSize)/w25qxx.BlockSize);
 }
 //###################################################################################################################
+uint32_t	W25qxx_SectorToPage(uint32_t	SectorAddress)
+{
+	return (SectorAddress*w25qxx.SectorSize)/w25qxx.PageSize;
+}
+//###################################################################################################################
+uint32_t	W25qxx_BlockToPage(uint32_t	BlockAddress)
+{
+	return (BlockAddress*w25qxx.BlockSize)/w25qxx.PageSize;
+}
+//###################################################################################################################
 bool 	W25qxx_IsEmptyPage(uint32_t Page_Address,uint32_t OffsetInByte,uint32_t NumByteToCheck_up_to_PageSize)
 {
 	while(w25qxx.Lock==1)
@@ -581,6 +591,8 @@ void 	W25qxx_WritePage(uint8_t *pBuffer	,uint32_t Page_Address,uint32_t OffsetIn
 	w25qxx.Lock=1;
 	if(((NumByteToWrite_up_to_PageSize+OffsetInByte)>w25qxx.PageSize)||(NumByteToWrite_up_to_PageSize==0))
 		NumByteToWrite_up_to_PageSize=w25qxx.PageSize-OffsetInByte;
+	if((OffsetInByte+NumByteToWrite_up_to_PageSize) > w25qxx.PageSize)
+		NumByteToWrite_up_to_PageSize = w25qxx.PageSize-OffsetInByte;
 	#if (_W25QXX_DEBUG==1)
 	printf("w25qxx WritePage:%d, Offset:%d ,Writes %d Bytes, begin...\r\n",Page_Address,OffsetInByte,NumByteToWrite_up_to_PageSize);
 	W25qxx_Delay(100);
@@ -620,29 +632,37 @@ void 	W25qxx_WritePage(uint8_t *pBuffer	,uint32_t Page_Address,uint32_t OffsetIn
 //###################################################################################################################
 void 	W25qxx_WriteSector(uint8_t *pBuffer	,uint32_t Sector_Address,uint32_t OffsetInByte	,uint32_t NumByteToWrite_up_to_SectorSize)
 {
-	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx WriteSector %d begin...\r\n",Sector_Address);
-	W25qxx_Delay(100);
-	#endif	
 	if((NumByteToWrite_up_to_SectorSize>w25qxx.SectorSize)||(NumByteToWrite_up_to_SectorSize==0))
 		NumByteToWrite_up_to_SectorSize=w25qxx.SectorSize;
-	uint32_t	pageStart=(Sector_Address*w25qxx.SectorSize/w25qxx.PageSize)+(OffsetInByte/w25qxx.PageSize);
-	uint32_t	pageEnd=(Sector_Address*w25qxx.SectorSize/w25qxx.PageSize)+((OffsetInByte+NumByteToWrite_up_to_SectorSize)/w25qxx.PageSize);
-	uint32_t	LocalOffset=OffsetInByte%w25qxx.PageSize;	
-	uint32_t	Bytes=0;
-	for(uint16_t	Page=pageStart; Page<pageEnd ; Page++ )
+	#if (_W25QXX_DEBUG==1)
+	printf("w25qxx WriteSector:%d, Offset:%d ,Write %d Bytes, begin...\r\n",Sector_Address,OffsetInByte,NumByteToWrite_up_to_SectorSize);
+	W25qxx_Delay(100);
+	#endif	
+	if(OffsetInByte>=w25qxx.SectorSize)
 	{
-		if((NumByteToWrite_up_to_SectorSize%w25qxx.PageSize == 0) && (NumByteToWrite_up_to_SectorSize/w25qxx.PageSize>0))
-			Bytes = w25qxx.PageSize;
-		else if (NumByteToWrite_up_to_SectorSize/w25qxx.PageSize>0)
-			Bytes=w25qxx.PageSize-LocalOffset;
-		else
-			Bytes=NumByteToWrite_up_to_SectorSize;
-		W25qxx_WritePage(pBuffer,Page,LocalOffset,Bytes);
-		NumByteToWrite_up_to_SectorSize-=Bytes;
+		#if (_W25QXX_DEBUG==1)
+		printf("w25qxx WriteSector Faild!\r\n");
+		W25qxx_Delay(100);
+		#endif	
+		return;
+	}	
+	uint32_t	StartPage;
+	int32_t		BytesToWrite;
+	uint32_t	LocalOffset;	
+	if((OffsetInByte+NumByteToWrite_up_to_SectorSize) > w25qxx.SectorSize)
+		BytesToWrite = w25qxx.SectorSize-OffsetInByte;
+	else
+		BytesToWrite = NumByteToWrite_up_to_SectorSize;	
+	StartPage = W25qxx_SectorToPage(Sector_Address)+(OffsetInByte/w25qxx.PageSize);
+	LocalOffset = OffsetInByte%w25qxx.PageSize;	
+	do
+	{		
+		W25qxx_WritePage(pBuffer,StartPage,LocalOffset,BytesToWrite);
+		StartPage++;
+		BytesToWrite-=w25qxx.PageSize-LocalOffset;
+		pBuffer+=w25qxx.PageSize;	
 		LocalOffset=0;
-		pBuffer+=Bytes;	
-	}
+	}while(BytesToWrite>0);		
 	#if (_W25QXX_DEBUG==1)
 	printf("w25qxx WriteSector Done\r\n");
 	W25qxx_Delay(100);
@@ -651,29 +671,37 @@ void 	W25qxx_WriteSector(uint8_t *pBuffer	,uint32_t Sector_Address,uint32_t Offs
 //###################################################################################################################
 void 	W25qxx_WriteBlock	(uint8_t* pBuffer ,uint32_t Block_Address	,uint32_t OffsetInByte	,uint32_t	NumByteToWrite_up_to_BlockSize)
 {
-	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx WriteBlock %d begin...\r\n",Block_Address);
-	W25qxx_Delay(100);
-	#endif	
 	if((NumByteToWrite_up_to_BlockSize>w25qxx.BlockSize)||(NumByteToWrite_up_to_BlockSize==0))
 		NumByteToWrite_up_to_BlockSize=w25qxx.BlockSize;
-	uint32_t	pageStart=(Block_Address*w25qxx.BlockSize/w25qxx.PageSize)+(OffsetInByte/w25qxx.PageSize);
-	uint32_t	pageEnd=(Block_Address*w25qxx.BlockSize/w25qxx.PageSize)+((OffsetInByte+NumByteToWrite_up_to_BlockSize)/w25qxx.PageSize);
-	uint32_t	LocalOffset=OffsetInByte%w25qxx.PageSize;	
-	uint32_t	Bytes=0;
-	for(uint16_t	Page=pageStart; Page<pageEnd ; Page++ )
+	#if (_W25QXX_DEBUG==1)
+	printf("w25qxx WriteBlock:%d, Offset:%d ,Write %d Bytes, begin...\r\n",Block_Address,OffsetInByte,NumByteToWrite_up_to_BlockSize);
+	W25qxx_Delay(100);
+	#endif	
+	if(OffsetInByte>=w25qxx.BlockSize)
 	{
-		if((NumByteToWrite_up_to_BlockSize%w25qxx.PageSize == 0) && (NumByteToWrite_up_to_BlockSize/w25qxx.PageSize>0))
-			Bytes = w25qxx.PageSize;
-		else if (NumByteToWrite_up_to_BlockSize/w25qxx.PageSize>0)
-			Bytes=w25qxx.PageSize-LocalOffset;
-		else
-			Bytes=NumByteToWrite_up_to_BlockSize;
-		W25qxx_WritePage(pBuffer,Page,LocalOffset,Bytes);
-		NumByteToWrite_up_to_BlockSize-=Bytes;
+		#if (_W25QXX_DEBUG==1)
+		printf("w25qxx WriteBlock Faild!\r\n");
+		W25qxx_Delay(100);
+		#endif	
+		return;
+	}	
+	uint32_t	StartPage;
+	int32_t		BytesToWrite;
+	uint32_t	LocalOffset;	
+	if((OffsetInByte+NumByteToWrite_up_to_BlockSize) > w25qxx.BlockSize)
+		BytesToWrite = w25qxx.BlockSize-OffsetInByte;
+	else
+		BytesToWrite = NumByteToWrite_up_to_BlockSize;	
+	StartPage = W25qxx_BlockToPage(Block_Address)+(OffsetInByte/w25qxx.PageSize);
+	LocalOffset = OffsetInByte%w25qxx.PageSize;	
+	do
+	{		
+		W25qxx_ReadPage(pBuffer,StartPage,LocalOffset,BytesToWrite);
+		StartPage++;
+		BytesToWrite-=w25qxx.PageSize-LocalOffset;
+		pBuffer+=w25qxx.PageSize;	
 		LocalOffset=0;
-		pBuffer+=Bytes;	
-	}
+	}while(BytesToWrite>0);		
 	#if (_W25QXX_DEBUG==1)
 	printf("w25qxx WriteBlock Done\r\n");
 	W25qxx_Delay(100);
@@ -750,6 +778,8 @@ void 	W25qxx_ReadPage(uint8_t *pBuffer,uint32_t Page_Address,uint32_t OffsetInBy
 	w25qxx.Lock=1;
 	if((NumByteToRead_up_to_PageSize>w25qxx.PageSize)||(NumByteToRead_up_to_PageSize==0))
 		NumByteToRead_up_to_PageSize=w25qxx.PageSize;
+	if((OffsetInByte+NumByteToRead_up_to_PageSize) > w25qxx.PageSize)
+		NumByteToRead_up_to_PageSize = w25qxx.PageSize-OffsetInByte;
 	#if (_W25QXX_DEBUG==1)
 	printf("w25qxx ReadPage:%d, Offset:%d ,Read %d Bytes, begin...\r\n",Page_Address,OffsetInByte,NumByteToRead_up_to_PageSize);
 	W25qxx_Delay(100);
@@ -789,30 +819,35 @@ void 	W25qxx_ReadSector(uint8_t *pBuffer,uint32_t Sector_Address,uint32_t Offset
 {	
 	if((NumByteToRead_up_to_SectorSize>w25qxx.SectorSize)||(NumByteToRead_up_to_SectorSize==0))
 		NumByteToRead_up_to_SectorSize=w25qxx.SectorSize;
-
 	#if (_W25QXX_DEBUG==1)
 	printf("w25qxx ReadSector:%d, Offset:%d ,Read %d Bytes, begin...\r\n",Sector_Address,OffsetInByte,NumByteToRead_up_to_SectorSize);
 	W25qxx_Delay(100);
 	#endif	
-	
-	uint32_t	pageStart=(Sector_Address*w25qxx.SectorSize/w25qxx.PageSize)+(OffsetInByte/w25qxx.PageSize);
-	uint32_t	pageEnd=(Sector_Address*w25qxx.SectorSize/w25qxx.PageSize)+((OffsetInByte+NumByteToRead_up_to_SectorSize)/w25qxx.PageSize);
-
-	uint32_t	LocalOffset=OffsetInByte%w25qxx.PageSize;	
-	uint32_t	Bytes=0;
-	for(uint16_t	Page=pageStart; Page<pageEnd ; Page++ )
+	if(OffsetInByte>=w25qxx.SectorSize)
 	{
-		if((NumByteToRead_up_to_SectorSize%w25qxx.PageSize == 0) && (NumByteToRead_up_to_SectorSize/w25qxx.PageSize>0))
-			Bytes = w25qxx.PageSize;
-		else if (NumByteToRead_up_to_SectorSize/w25qxx.PageSize>0)
-			Bytes=w25qxx.PageSize-LocalOffset;
-		else
-			Bytes=NumByteToRead_up_to_SectorSize;
-		W25qxx_ReadPage(pBuffer,Page,LocalOffset,Bytes);
-		NumByteToRead_up_to_SectorSize-=Bytes;
+		#if (_W25QXX_DEBUG==1)
+		printf("w25qxx ReadSector Faild!\r\n");
+		W25qxx_Delay(100);
+		#endif	
+		return;
+	}	
+	uint32_t	StartPage;
+	int32_t		BytesToRead;
+	uint32_t	LocalOffset;	
+	if((OffsetInByte+NumByteToRead_up_to_SectorSize) > w25qxx.SectorSize)
+		BytesToRead = w25qxx.SectorSize-OffsetInByte;
+	else
+		BytesToRead = NumByteToRead_up_to_SectorSize;	
+	StartPage = W25qxx_SectorToPage(Sector_Address)+(OffsetInByte/w25qxx.PageSize);
+	LocalOffset = OffsetInByte%w25qxx.PageSize;	
+	do
+	{		
+		W25qxx_ReadPage(pBuffer,StartPage,LocalOffset,BytesToRead);
+		StartPage++;
+		BytesToRead-=w25qxx.PageSize-LocalOffset;
+		pBuffer+=w25qxx.PageSize;	
 		LocalOffset=0;
-		pBuffer+=Bytes;	
-	}
+	}while(BytesToRead>0);		
 	#if (_W25QXX_DEBUG==1)
 	printf("w25qxx ReadSector Done\r\n");
 	W25qxx_Delay(100);
@@ -827,23 +862,31 @@ void 	W25qxx_ReadBlock(uint8_t* pBuffer,uint32_t Block_Address,uint32_t OffsetIn
 	printf("w25qxx ReadBlock:%d, Offset:%d ,Read %d Bytes, begin...\r\n",Block_Address,OffsetInByte,NumByteToRead_up_to_BlockSize);
 	W25qxx_Delay(100);
 	#endif	
-	uint32_t	pageStart=(Block_Address*w25qxx.BlockSize/w25qxx.PageSize)+(OffsetInByte/w25qxx.PageSize);
-	uint32_t	pageEnd=(Block_Address*w25qxx.BlockSize/w25qxx.PageSize)+((OffsetInByte+NumByteToRead_up_to_BlockSize)/w25qxx.PageSize);
-	uint32_t	LocalOffset=OffsetInByte%w25qxx.PageSize;	
-	uint32_t	Bytes=0;
-	for(uint16_t	Page=pageStart; Page<pageEnd ; Page++ )
+	if(OffsetInByte>=w25qxx.BlockSize)
 	{
-		if((NumByteToRead_up_to_BlockSize%w25qxx.PageSize == 0) && (NumByteToRead_up_to_BlockSize/w25qxx.PageSize>0))
-			Bytes = w25qxx.PageSize;
-		else if (NumByteToRead_up_to_BlockSize/w25qxx.PageSize>0)
-			Bytes=w25qxx.PageSize-LocalOffset;
-		else
-			Bytes=NumByteToRead_up_to_BlockSize;
-		W25qxx_ReadPage(pBuffer,Page,LocalOffset,Bytes);
-		NumByteToRead_up_to_BlockSize-=Bytes;
+		#if (_W25QXX_DEBUG==1)
+		printf("w25qxx ReadBlock Faild!\r\n");
+		W25qxx_Delay(100);
+		#endif	
+		return;
+	}	
+	uint32_t	StartPage;
+	int32_t		BytesToRead;
+	uint32_t	LocalOffset;	
+	if((OffsetInByte+NumByteToRead_up_to_BlockSize) > w25qxx.BlockSize)
+		BytesToRead = w25qxx.BlockSize-OffsetInByte;
+	else
+		BytesToRead = NumByteToRead_up_to_BlockSize;	
+	StartPage = W25qxx_BlockToPage(Block_Address)+(OffsetInByte/w25qxx.PageSize);
+	LocalOffset = OffsetInByte%w25qxx.PageSize;	
+	do
+	{		
+		W25qxx_ReadPage(pBuffer,StartPage,LocalOffset,BytesToRead);
+		StartPage++;
+		BytesToRead-=w25qxx.PageSize-LocalOffset;
+		pBuffer+=w25qxx.PageSize;	
 		LocalOffset=0;
-		pBuffer+=Bytes;	
-	}
+	}while(BytesToRead>0);		
 	#if (_W25QXX_DEBUG==1)
 	printf("w25qxx ReadBlock Done\r\n");
 	W25qxx_Delay(100);
