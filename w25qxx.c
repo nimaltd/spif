@@ -1,12 +1,10 @@
 
-#if (_W25QXX_DEBUG==1)
-#include <stdio.h>
-#endif
 #include "w25qxx.h"
 #include "w25qxxConfig.h"
 
-
-
+#if (_W25QXX_DEBUG==1)
+#include <stdio.h>
+#endif
 
 #define W25QXX_DUMMY_BYTE         0xA5
 
@@ -22,7 +20,7 @@ w25qxx_t	w25qxx;
 uint8_t	W25qxx_Spi(uint8_t	Data)
 {
 	uint8_t	ret;
-	HAL_SPI_TransmitReceive(&_W25QXX_SPI,&Data,&ret,1,10);
+	HAL_SPI_TransmitReceive(&_W25QXX_SPI,&Data,&ret,1,100);
 	return ret;	
 }
 //###################################################################################################################
@@ -133,6 +131,8 @@ bool	W25qxx_Init(void)
 	w25qxx.Lock=1;	
 	while(HAL_GetTick()<100)
 		W25qxx_Delay(1);
+  HAL_GPIO_WritePin(_W25QXX_CS_GPIO,_W25QXX_CS_PIN,GPIO_PIN_SET);
+  W25qxx_Delay(100);
 	uint32_t	id;
 	#if (_W25QXX_DEBUG==1)
 	printf("w25qxx Init Begin...\r\n");
