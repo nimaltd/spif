@@ -1,6 +1,6 @@
 
 #include "w25qxx.h"
-#include "w25qxxConfig.h"
+#include "w25qxxConf.h"
 
 #if (_W25QXX_DEBUG==1)
 #include <stdio.h>
