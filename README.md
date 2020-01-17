@@ -1,4 +1,5 @@
 # W25QXX SPI FLASH Library for STM32
+[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](YOUR_EMAIL_CODE)
 <br />
 I hope use it and enjoy.
 <br />
