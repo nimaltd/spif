@@ -1,4 +1,4 @@
-# W25QXX SPI FLASH Library for STM32
+## W25QXX SPI FLASH Library for STM32
 1. Enable SPI and a Gpio as output(CS pin).Connect WP and HOLD to VCC.
 2. Select "General peripheral Initalizion as a pair of '.c/.h' file per peripheral" on project settings.
 3. Config "w25qxxConfig.h".
