@@ -1,4 +1,4 @@
-If you like this library, please donate: [![Donate](https://img.shields.io/badge/donate-WebMoney-green)](YOUR_EMAIL_CODE)
+If you like this library, please donate:      [![Donate](https://img.shields.io/badge/donate-WebMoney-green)](Z121342638771)
 
 
 ## W25QXX SPI FLASH Library for STM32
