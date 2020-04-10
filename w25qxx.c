@@ -660,7 +660,7 @@ void 	W25qxx_WriteSector(uint8_t *pBuffer	,uint32_t Sector_Address,uint32_t Offs
 		W25qxx_WritePage(pBuffer,StartPage,LocalOffset,BytesToWrite);
 		StartPage++;
 		BytesToWrite-=w25qxx.PageSize-LocalOffset;
-		pBuffer+=w25qxx.PageSize;	
+		pBuffer += w25qxx.PageSize - LocalOffset;
 		LocalOffset=0;
 	}while(BytesToWrite>0);		
 	#if (_W25QXX_DEBUG==1)
@@ -699,7 +699,7 @@ void 	W25qxx_WriteBlock	(uint8_t* pBuffer ,uint32_t Block_Address	,uint32_t Offs
 		W25qxx_WritePage(pBuffer,StartPage,LocalOffset,BytesToWrite);
 		StartPage++;
 		BytesToWrite-=w25qxx.PageSize-LocalOffset;
-		pBuffer+=w25qxx.PageSize;	
+		pBuffer += w25qxx.PageSize - LocalOffset;
 		LocalOffset=0;
 	}while(BytesToWrite>0);		
 	#if (_W25QXX_DEBUG==1)
@@ -845,7 +845,7 @@ void 	W25qxx_ReadSector(uint8_t *pBuffer,uint32_t Sector_Address,uint32_t Offset
 		W25qxx_ReadPage(pBuffer,StartPage,LocalOffset,BytesToRead);
 		StartPage++;
 		BytesToRead-=w25qxx.PageSize-LocalOffset;
-		pBuffer+=w25qxx.PageSize;	
+		pBuffer += w25qxx.PageSize - LocalOffset;
 		LocalOffset=0;
 	}while(BytesToRead>0);		
 	#if (_W25QXX_DEBUG==1)
@@ -884,7 +884,7 @@ void 	W25qxx_ReadBlock(uint8_t* pBuffer,uint32_t Block_Address,uint32_t OffsetIn
 		W25qxx_ReadPage(pBuffer,StartPage,LocalOffset,BytesToRead);
 		StartPage++;
 		BytesToRead-=w25qxx.PageSize-LocalOffset;
-		pBuffer+=w25qxx.PageSize;	
+		pBuffer += w25qxx.PageSize - LocalOffset;
 		LocalOffset=0;
 	}while(BytesToRead>0);		
 	#if (_W25QXX_DEBUG==1)
