@@ -67,6 +67,9 @@ extern w25qxx_t	w25qxx;
 // in Page,Sector and block read/write functions, can put 0 to read maximum bytes 
 //############################################################################
 bool		W25qxx_Init(void);
+void		W25qxx_DeInit(void);
+
+uint32_t 	W25qxx_ReadID(void);
 
 void		W25qxx_EraseChip(void);
 void 		W25qxx_EraseSector(uint32_t SectorAddr);
