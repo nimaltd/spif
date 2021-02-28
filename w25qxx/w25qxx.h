@@ -69,8 +69,6 @@ extern w25qxx_t	w25qxx;
 bool		W25qxx_Init(void);
 void		W25qxx_DeInit(void);
 
-uint32_t 	W25qxx_ReadID(void);
-
 void		W25qxx_EraseChip(void);
 void 		W25qxx_EraseSector(uint32_t SectorAddr);
 void 		W25qxx_EraseBlock(uint32_t BlockAddr);

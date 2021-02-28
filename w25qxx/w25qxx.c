@@ -46,6 +46,7 @@
 //###################################################################################################################
 static void W25qxx_WriteEnable(void);
 static void W25qxx_WriteDisable(void);
+static uint32_t W25qxx_ReadID(void);
 static void W25qxx_ReadUniqID(void);
 static uint8_t W25qxx_ReadStatusRegister(uint8_t sr_number);
 static void W25qxx_WaitForWriteEnd(void);
@@ -172,27 +173,7 @@ void W25qxx_DeInit(void)
 	memset(&w25qxx, 0x0, sizeof(w25qxx));
 	W25qxx_ReleaseMutex();
 }
-//###################################################################################################################
-uint32_t W25qxx_ReadID(void)
-{
-	uint8_t i;
-	uint8_t ans;
-	uint32_t ID = 0x0;
 
-	W25qxx_CSLow();
-
-	W25qxx_Tranceive(W25QXX_READ_ID_BYTE);
-
-	for (i = 0; i < 3; i++)
-	{
-		ans = W25qxx_Tranceive(W25QXX_DUMMY_BYTE);
-		ID = (ID << 8) | ans;
-	}
-
-	W25qxx_CSHigh();
-
-	return ID;
-}
 //###################################################################################################################
 void W25qxx_EraseChip(void)
 {
@@ -896,6 +877,27 @@ static void W25qxx_ReadUniqID(void)
 	for (uint8_t i = 0; i < 8; i++)
 		w25qxx.UniqID[i] = W25qxx_Tranceive(W25QXX_DUMMY_BYTE);
 	W25qxx_CSHigh();
+}
+//###################################################################################################################
+static  uint32_t W25qxx_ReadID(void)
+{
+	uint8_t i;
+	uint8_t ans;
+	uint32_t ID = 0x0;
+
+	W25qxx_CSLow();
+
+	W25qxx_Tranceive(W25QXX_READ_ID_BYTE);
+
+	for (i = 0; i < 3; i++)
+	{
+		ans = W25qxx_Tranceive(W25QXX_DUMMY_BYTE);
+		ID = (ID << 8) | ans;
+	}
+
+	W25qxx_CSHigh();
+
+	return ID;
 }
 //###################################################################################################################
 void W25qxx_WriteStatusRegister(uint8_t sr_number, uint8_t data)
