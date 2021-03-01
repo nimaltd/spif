@@ -152,7 +152,7 @@ bool W25qxx_Init(void)
 	W25qxx_ReadStatusRegister(2);
 	W25qxx_ReadStatusRegister(3);
 
-	W25qxx_Debug(printf("w25qxx Page Size: %lu Bytes\r\n", w25qxx.PageSize));
+	W25qxx_Debug(printf("w25qxx Page Size: %lu Bytes\r\n", (uint32_t) w25qxx.PageSize));
 	W25qxx_Debug(printf("w25qxx Page Count: %lu\r\n", w25qxx.PageCount));
 	W25qxx_Debug(printf("w25qxx Sector Size: %lu Bytes\r\n", w25qxx.SectorSize));
 	W25qxx_Debug(printf("w25qxx Sector Count: %lu\r\n", w25qxx.SectorCount));
