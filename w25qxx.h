@@ -30,7 +30,6 @@
 #endif
 
 #include <stdbool.h>
-#include "spi.h"
 
 typedef enum
 {
