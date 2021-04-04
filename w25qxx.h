@@ -7,10 +7,13 @@
   Instagram:  http://instagram.com/github.NimaLTD
   Youtube:    https://www.youtube.com/channel/UCUhY7qY1klJm1d2kulr9ckw
   
-  Version:    1.1.1
+  Version:    1.1.2
   
   
   Reversion History:
+  
+  (1.1.2)
+  Fix read ID.
   
   (1.1.1)
   Fix some errors.
