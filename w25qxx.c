@@ -9,7 +9,7 @@
 #define W25QXX_DUMMY_BYTE         0xA5
 
 w25qxx_t	w25qxx;
-
+extern SPI_HandleTypeDef _W25QXX_SPI;
 #if (_W25QXX_USE_FREERTOS==1)
 #define	W25qxx_Delay(delay)		osDelay(delay)
 #include "cmsis_os.h"
@@ -128,22 +128,22 @@ void W25qxx_WaitForWriteEnd(void)
 //###################################################################################################################
 bool	W25qxx_Init(void)
 {
-	w25qxx.Lock=1;	
-	while(HAL_GetTick()<100)
-		W25qxx_Delay(1);
+  w25qxx.Lock=1;	
+  while(HAL_GetTick()<100)
+    W25qxx_Delay(1);
   HAL_GPIO_WritePin(_W25QXX_CS_GPIO,_W25QXX_CS_PIN,GPIO_PIN_SET);
   W25qxx_Delay(100);
-	uint32_t	id;
-	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx Init Begin...\r\n");
-	#endif
-	id=W25qxx_ReadID();
+  uint32_t	id;
+  #if (_W25QXX_DEBUG==1)
+  printf("w25qxx Init Begin...\r\n");
+  #endif
+  id=W25qxx_ReadID();
 	
-	#if (_W25QXX_DEBUG==1)
-	printf("w25qxx ID:0x%X\r\n",id);
-	#endif
-	switch(id&0x000000FF)
-	{
+  #if (_W25QXX_DEBUG==1)
+  printf("w25qxx ID:0x%X\r\n", id);
+  #endif
+  switch(id & 0x000000FF)
+  {
 		case 0x20:	// 	w25q512
 			w25qxx.ID=W25Q512;
 			w25qxx.BlockCount=1024;
