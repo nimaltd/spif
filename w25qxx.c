@@ -461,7 +461,6 @@ bool W25qxx_IsEmptySector(uint32_t Sector_Address, uint32_t OffsetInByte, uint32
 	{
 		HAL_GPIO_WritePin(_W25QXX_CS_GPIO, _W25QXX_CS_PIN, GPIO_PIN_RESET);
 		WorkAddress = (i + Sector_Address * w25qxx.SectorSize);
-		W25qxx_Spi(0x0B);
 		if (w25qxx.ID >= W25Q256)
 		{
 			W25qxx_Spi(0x0C);
