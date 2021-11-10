@@ -7,10 +7,13 @@
   Instagram:  http://instagram.com/github.NimaLTD
   Youtube:    https://www.youtube.com/channel/UCUhY7qY1klJm1d2kulr9ckw
   
-  Version:    1.1.3
+  Version:    1.1.4
   
   
   Reversion History:
+  
+  (1.1.4)
+  Fix W25qxx_IsEmptySector function.
   
   (1.1.3)
   Fix Erase and write sector in w25q256 and w25q512.
