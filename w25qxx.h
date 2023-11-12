@@ -7,10 +7,13 @@
   Instagram:  http://instagram.com/github.NimaLTD
   Youtube:    https://www.youtube.com/channel/UCUhY7qY1klJm1d2kulr9ckw
   
-  Version:    1.1.4
+  Version:    1.2.0
   
   
   Reversion History:
+
+  (1.2.0)
+   Add Different SPI Handle for Init
   
   (1.1.4)
   Fix W25qxx_IsEmptySector function.
@@ -76,8 +79,8 @@ extern "C"
 	{
 		SPI_HandleTypeDef* hspi;
 		GPIO_TypeDef*      cs_gpio;
-		uint16_t            cs_pin;
-		w25qxx_t			desc;
+		uint16_t           cs_pin;
+		w25qxx_t	   desc;
 		
 	} w25qxx_peripheral;
 
