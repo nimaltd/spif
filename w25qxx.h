@@ -77,8 +77,8 @@ extern "C"
 
 	typedef struct w25qxx_peripheral
 	{
-		SPI_HandleTypeDef* hspi;
-		GPIO_TypeDef*      cs_gpio;
+		SPI_HandleTypeDef  *hspi;
+		GPIO_TypeDef       *cs_gpio;
 		uint16_t           cs_pin;
 		w25qxx_t	   desc;
 		
@@ -87,32 +87,32 @@ extern "C"
 	//############################################################################
 	// in Page,Sector and block read/write functions, can put 0 to read maximum bytes
 	//############################################################################
-	bool W25qxx_Init(w25qxx_peripheral* per);
+	bool W25qxx_Init(w25qxx_peripheral *per);
 
-	void W25qxx_EraseChip(w25qxx_peripheral* per);
-	void W25qxx_EraseSector(w25qxx_peripheral* per, uint32_t SectorAddr);
-	void W25qxx_EraseBlock(w25qxx_peripheral* per, uint32_t BlockAddr);
+	void W25qxx_EraseChip(w25qxx_peripheral *per);
+	void W25qxx_EraseSector(w25qxx_peripheral *per, uint32_t SectorAddr);
+	void W25qxx_EraseBlock(w25qxx_peripheral *per, uint32_t BlockAddr);
 
-	uint32_t W25qxx_PageToSector(w25qxx_peripheral* per, uint32_t PageAddress);
-	uint32_t W25qxx_PageToBlock(w25qxx_peripheral* per, uint32_t PageAddress);
-	uint32_t W25qxx_SectorToBlock(w25qxx_peripheral* per, uint32_t SectorAddress);
-	uint32_t W25qxx_SectorToPage(w25qxx_peripheral* per, uint32_t SectorAddress);
-	uint32_t W25qxx_BlockToPage(w25qxx_peripheral* per, uint32_t BlockAddress);
+	uint32_t W25qxx_PageToSector(w25qxx_peripheral *per, uint32_t PageAddress);
+	uint32_t W25qxx_PageToBlock(w25qxx_peripheral *per, uint32_t PageAddress);
+	uint32_t W25qxx_SectorToBlock(w25qxx_peripheral *per, uint32_t SectorAddress);
+	uint32_t W25qxx_SectorToPage(w25qxx_peripheral *per, uint32_t SectorAddress);
+	uint32_t W25qxx_BlockToPage(w25qxx_peripheral *per, uint32_t BlockAddress);
 
-	bool W25qxx_IsEmptyPage(w25qxx_peripheral* per, uint32_t Page_Address, uint32_t OffsetInByte, uint32_t NumByteToCheck_up_to_PageSize);
-	bool W25qxx_IsEmptySector(w25qxx_peripheral* per, uint32_t Sector_Address, uint32_t OffsetInByte, uint32_t NumByteToCheck_up_to_SectorSize);
-	bool W25qxx_IsEmptyBlock(w25qxx_peripheral* per, uint32_t Block_Address, uint32_t OffsetInByte, uint32_t NumByteToCheck_up_to_BlockSize);
+	bool W25qxx_IsEmptyPage(w25qxx_peripheral *per, uint32_t Page_Address, uint32_t OffsetInByte, uint32_t NumByteToCheck_up_to_PageSize);
+	bool W25qxx_IsEmptySector(w25qxx_peripheral *per, uint32_t Sector_Address, uint32_t OffsetInByte, uint32_t NumByteToCheck_up_to_SectorSize);
+	bool W25qxx_IsEmptyBlock(w25qxx_peripheral *per, uint32_t Block_Address, uint32_t OffsetInByte, uint32_t NumByteToCheck_up_to_BlockSize);
 
-	void W25qxx_WriteByte(w25qxx_peripheral* per, uint8_t pBuffer, uint32_t Bytes_Address);
-	void W25qxx_WritePage(w25qxx_peripheral* per, uint8_t *pBuffer, uint32_t Page_Address, uint32_t OffsetInByte, uint32_t NumByteToWrite_up_to_PageSize);
-	void W25qxx_WriteSector(w25qxx_peripheral* per, uint8_t *pBuffer, uint32_t Sector_Address, uint32_t OffsetInByte, uint32_t NumByteToWrite_up_to_SectorSize);
-	void W25qxx_WriteBlock(w25qxx_peripheral* per, uint8_t *pBuffer, uint32_t Block_Address, uint32_t OffsetInByte, uint32_t NumByteToWrite_up_to_BlockSize);
+	void W25qxx_WriteByte(w25qxx_peripheral *per, uint8_t pBuffer, uint32_t Bytes_Address);
+	void W25qxx_WritePage(w25qxx_peripheral *per, uint8_t *pBuffer, uint32_t Page_Address, uint32_t OffsetInByte, uint32_t NumByteToWrite_up_to_PageSize);
+	void W25qxx_WriteSector(w25qxx_peripheral *per, uint8_t *pBuffer, uint32_t Sector_Address, uint32_t OffsetInByte, uint32_t NumByteToWrite_up_to_SectorSize);
+	void W25qxx_WriteBlock(w25qxx_peripheral *per, uint8_t *pBuffer, uint32_t Block_Address, uint32_t OffsetInByte, uint32_t NumByteToWrite_up_to_BlockSize);
 
-	void W25qxx_ReadByte(w25qxx_peripheral* per, uint8_t *pBuffer, uint32_t Bytes_Address);
-	void W25qxx_ReadBytes(w25qxx_peripheral* per, uint8_t *pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead);
-	void W25qxx_ReadPage(w25qxx_peripheral* per, uint8_t *pBuffer, uint32_t Page_Address, uint32_t OffsetInByte, uint32_t NumByteToRead_up_to_PageSize);
-	void W25qxx_ReadSector(w25qxx_peripheral* per, uint8_t *pBuffer, uint32_t Sector_Address, uint32_t OffsetInByte, uint32_t NumByteToRead_up_to_SectorSize);
-	void W25qxx_ReadBlock(w25qxx_peripheral* per, uint8_t *pBuffer, uint32_t Block_Address, uint32_t OffsetInByte, uint32_t NumByteToRead_up_to_BlockSize);
+	void W25qxx_ReadByte(w25qxx_peripheral *per, uint8_t *pBuffer, uint32_t Bytes_Address);
+	void W25qxx_ReadBytes(w25qxx_peripheral *per, uint8_t *pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead);
+	void W25qxx_ReadPage(w25qxx_peripheral *per, uint8_t *pBuffer, uint32_t Page_Address, uint32_t OffsetInByte, uint32_t NumByteToRead_up_to_PageSize);
+	void W25qxx_ReadSector(w25qxx_peripheral *per, uint8_t *pBuffer, uint32_t Sector_Address, uint32_t OffsetInByte, uint32_t NumByteToRead_up_to_SectorSize);
+	void W25qxx_ReadBlock(w25qxx_peripheral *per, uint8_t *pBuffer, uint32_t Block_Address, uint32_t OffsetInByte, uint32_t NumByteToRead_up_to_BlockSize);
 //############################################################################
 #ifdef __cplusplus
 }
