@@ -9,7 +9,7 @@
 -  Instagram:  https://instagram.com/github.NimaLTD  
 ---  
 - HAL_DMA is Not ready yet.   
-- I have only test on w25q64. please test other device and tell me.
+- I have only test on w25q64. please test other devices and tell me.
 ---
 * Install Library from https://github.com/nimaltd/STM32-PACK/raw/main/SPIF/NimaLTD.I-CUBE-SPIF.pdsc
 * Add and enable it.
