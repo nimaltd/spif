@@ -12,7 +12,7 @@ Thank you.
 * Add and enable it.
 * Enable SPIs and a GPIOs as output (CS pin).Connect WP and HOLD to VCC.
 * Select a pin as a GPIO_PUTPUT_PUSHPULL for CS pin.
-* Define a structor of `SPIF_HandleTypeDef`.
+* Define a structure of `SPIF_HandleTypeDef`.
 * Call `SPIF_Init()` and enjoy.
 
 
