@@ -8,7 +8,7 @@ Thank you.
 *  Youtube:    https://www.youtube.com/@nimaltd
 *  Instagram:  https://instagram.com/github.NimaLTD
 
-* Install (SPIF LIBRARY)[https://github.com/nimaltd/STM32-PACK/raw/main/SPIF/NimaLTD.I-CUBE-SPIF.pdsc]
+* Install Library from https://github.com/nimaltd/STM32-PACK/raw/main/SPIF/NimaLTD.I-CUBE-SPIF.pdsc
 * Add and enable it.
 * Enable SPIs and a GPIOs as output (CS pin).Connect WP and HOLD to VCC.
 * Select a pin as a GPIO_PUTPUT_PUSHPULL for CS pin.
