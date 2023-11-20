@@ -1,6 +1,6 @@
 # SPI FLASH Library for STM32  
 ---  
-## Please Do not Forget STAR, DONATE and support me on social network. Thank you. :sparkling_heart:  
+## Please Do not Forget STAR, DONATE and support me on social networks. Thank you. :sparkling_heart:  
 ---   
 -  Author:     Nima Askari  
 -  Github:     https://www.github.com/NimaLTD
