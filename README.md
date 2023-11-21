@@ -17,7 +17,9 @@
 * Define a structure of `SPIF_HandleTypeDef`.
 * Call `SPIF_Init()` and enjoy.
 ---
-[![Everything Is AWESOME](https://img.youtube.com/vi//watch?v=_baNId6cDi4/0.jpg)]([https://www.youtube.com//watch?v=_baNId6cDi4](https://www.youtube.com/watch?v=_baNId6cDi4) "Everything Is AWESOME")
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=_baNId6cDi4"><img src="https://img.youtube.com/vi/_baNId6cDi4/0.jpg" alt="IMAGE ALT TEXT"></a>
+</div>
 ---
 Previws Version: https://github.com/nimaltd/SPIF/archive/refs/tags/1.20.0.zip 
 
