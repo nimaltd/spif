@@ -93,8 +93,7 @@ void SPIF_UnLock(SPIF_HandleTypeDef *Handle)
 void SPIF_CsPin(SPIF_HandleTypeDef *Handle, bool Select)
 {
 	HAL_GPIO_WritePin(Handle->Gpio, Handle->Pin, (GPIO_PinState)Select);
-	for (int i = 0; i < 10; i++)
-		;
+	for (int i = 0; i < 10; i++);
 }
 
 /***********************************************************************************************************/
@@ -124,26 +123,6 @@ bool SPIF_Transmit(SPIF_HandleTypeDef *Handle, uint8_t *Tx, size_t Size, uint32_
 	bool retVal = false;
 #if (SPIF_PLATFORM == SPIF_PLATFORM_HAL)
 	if (HAL_SPI_Transmit(Handle->HSpi, Tx, Size, Timeout) == HAL_OK)
-	{
-		retVal = true;
-	}
-	else
-	{
-		dprintf("SPIF TIMEOUT\r\n");
-	}
-#elif (SPIF_PLATFORM == SPIF_PLATFORM_HAL_DMA)
-
-#endif
-	return retVal;
-}
-
-/***********************************************************************************************************/
-
-bool SPIF_Receive(SPIF_HandleTypeDef *Handle, uint8_t *Rx, size_t Size, uint32_t Timeout)
-{
-	bool retVal = false;
-#if (SPIF_PLATFORM == SPIF_PLATFORM_HAL)
-	if (HAL_SPI_Receive(Handle->HSpi, Rx, Size, Timeout) == HAL_OK)
 	{
 		retVal = true;
 	}
@@ -616,7 +595,7 @@ bool SPIF_ReadFn(SPIF_HandleTypeDef *Handle, uint32_t Address, uint8_t *Data, ui
 				break;
 			}
 		}
-		if (SPIF_Receive(Handle, Data, Size, 2000) == false)
+		if (SPIF_TransmitReceive(Handle, Data, Data, Size, 2000) == false)
 		{
 			SPIF_CsPin(Handle, 1);
 			break;
@@ -891,7 +870,16 @@ bool SPIF_WritePage(SPIF_HandleTypeDef *Handle, uint32_t PageNumber, uint8_t *Da
 {
 	SPIF_Lock(Handle);
 	bool retVal = false;
-	retVal = SPIF_WriteFn(Handle, PageNumber, Data, Size, Offset);
+	do
+	{
+		if ((Offset >= SPIF_PAGE_SIZE) || (PageNumber >= Handle->PageCnt))
+		{
+			break;
+		}
+		retVal = SPIF_WriteFn(Handle, PageNumber, Data, Size, Offset);
+
+	} while (0);
+
 	SPIF_UnLock(Handle);
 	return retVal;
 }
@@ -904,7 +892,7 @@ bool SPIF_WriteSector(SPIF_HandleTypeDef *Handle, uint32_t SectorNumber, uint8_t
 	bool retVal = true;
 	do
 	{
-		if (Offset >= SPIF_SECTOR_SIZE)
+		if ((Offset >= SPIF_SECTOR_SIZE) || (SectorNumber >= Handle->SectorCnt))
 		{
 			retVal = false;
 			break;
@@ -944,7 +932,7 @@ bool SPIF_WriteBlock(SPIF_HandleTypeDef *Handle, uint32_t BlockNumber, uint8_t *
 	bool retVal = true;
 	do
 	{
-		if (Offset >= SPIF_BLOCK_SIZE)
+		if ((Offset >= SPIF_BLOCK_SIZE) || (BlockNumber >= Handle->BlockCnt))
 		{
 			retVal = false;
 			break;
@@ -1012,13 +1000,21 @@ bool SPIF_ReadSector(SPIF_HandleTypeDef *Handle, uint32_t SectorNumber, uint8_t 
 {
 	SPIF_Lock(Handle);
 	bool retVal = false;
-	uint32_t address = SPIF_SectorToAddress(SectorNumber);
-	uint32_t maximum = SPIF_SECTOR_SIZE - Offset;
-	if (Size > maximum)
+	do
 	{
+		if ((Offset >= SPIF_SECTOR_SIZE) || (SectorNumber >= Handle->SectorCnt))
+		{
+			break;
+		}
+		uint32_t address = SPIF_SectorToAddress(SectorNumber);
+		uint32_t maximum = SPIF_SECTOR_SIZE - Offset;
+		if (Size > maximum)
+		{
 		Size = maximum;
-	}
-	retVal = SPIF_ReadFn(Handle, address, Data, Size);
+		}
+		retVal = SPIF_ReadFn(Handle, address, Data, Size);
+	} while (0);
+
 	SPIF_UnLock(Handle);
 	return retVal;
 }
@@ -1029,13 +1025,21 @@ bool SPIF_ReadBlock(SPIF_HandleTypeDef *Handle, uint32_t BlockNumber, uint8_t *D
 {
 	SPIF_Lock(Handle);
 	bool retVal = false;
-	uint32_t address = SPIF_BlockToAddress(BlockNumber);
-	uint32_t maximum = SPIF_BLOCK_SIZE - Offset;
-	if (Size > maximum)
+	do
 	{
-		Size = maximum;
-	}
-	retVal = SPIF_ReadFn(Handle, address, Data, Size);
+		if ((Offset >= SPIF_BLOCK_SIZE) || (BlockNumber >= Handle->BlockCnt))
+		{
+			break;
+		}
+	  uint32_t address = SPIF_BlockToAddress(BlockNumber);
+	  uint32_t maximum = SPIF_BLOCK_SIZE - Offset;
+	  if (Size > maximum)
+	  {
+	  	Size = maximum;
+	  }
+	  retVal = SPIF_ReadFn(Handle, address, Data, Size);
+	} while (0);
+
 	SPIF_UnLock(Handle);
 	return retVal;
 }

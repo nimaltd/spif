@@ -9,9 +9,13 @@
   Youtube:    https://www.youtube.com/@nimaltd
   Instagram:  https://instagram.com/github.NimaLTD
 
-  Version:    2.0.0
+  Version:    2.0.1
 
   History:
+              2.0.1
+              - Remove SPIF_Receive() function
+              - Add check size and offset in SPIF_Read
+
               2.0.0
               - Rewrite again
               - Support STM32CubeMx Packet installer
