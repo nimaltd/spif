@@ -16,7 +16,9 @@
 * Enable SPI and a GPIO as output-pushpull (CS pin).Connect WP and HOLD to VCC.
 * Define a structure of `SPIF_HandleTypeDef`.
 * Call `SPIF_Init()` and enjoy.
----  
+---
+[![Everything Is AWESOME](https://www.youtube.com/watch?v=_baNId6cDi4)
+---
 Previws Version: https://github.com/nimaltd/SPIF/archive/refs/tags/1.20.0.zip 
 
 
