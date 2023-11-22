@@ -24,6 +24,6 @@
 </div>
 
 ---
-Previws Version: https://github.com/nimaltd/SPIF/archive/refs/tags/1.20.0.zip 
+The old Version: https://github.com/nimaltd/SPIF/archive/refs/tags/1.20.0.zip 
 
 
