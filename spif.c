@@ -111,27 +111,29 @@ bool SPIF_TransmitReceive(SPIF_HandleTypeDef *Handle, uint8_t *Tx, uint8_t *Rx, 
 		dprintf("SPIF TIMEOUT\r\n");
 	}
 #elif (SPIF_PLATFORM == SPIF_PLATFORM_HAL_DMA)
-
-#endif
-	return retVal;
-}
-
-/***********************************************************************************************************/
-
-bool SPIF_Transmit(SPIF_HandleTypeDef *Handle, uint8_t *Tx, size_t Size, uint32_t Timeout)
-{
-	bool retVal = false;
-#if (SPIF_PLATFORM == SPIF_PLATFORM_HAL)
-	if (HAL_SPI_Transmit(Handle->HSpi, Tx, Size, Timeout) == HAL_OK)
+	uint32_t startTime = HAL_GetTick();
+	if (HAL_SPI_TransmitReceive_DMA(Handle->HSpi, Tx, Rx, Size) != HAL_OK)
 	{
-		retVal = true;
+		dprintf("SPIF TRANSFER ERROR\r\n");
 	}
 	else
 	{
-		dprintf("SPIF TIMEOUT\r\n");
+		while (1)
+		{
+			SPIF_Delay(1);
+			if (HAL_GetTick() - startTime >= Timeout)
+			{
+				dprintf("SPIF TIMEOUT\r\n");
+				HAL_SPI_DMAStop(Handle->HSpi);
+				break;
+			}
+			if (HAL_SPI_GetState(Handle->HSpi) == HAL_SPI_STATE_READY)
+      {
+				retVal = true;
+				break;
+      }
+		}
 	}
-#elif (SPIF_PLATFORM == SPIF_PLATFORM_HAL_DMA)
-
 #endif
 	return retVal;
 }
@@ -143,7 +145,7 @@ bool SPIF_WriteEnable(SPIF_HandleTypeDef *Handle)
 	bool retVal = true;
 	uint8_t tx[1] = {SPIF_CMD_WRITEENABLE};
 	SPIF_CsPin(Handle, 0);
-	if (SPIF_Transmit(Handle, tx, 1, 100) == false)
+	if (SPIF_TransmitReceive(Handle, tx, tx, 1, 100) == false)
 	{
 		retVal = false;
 		dprintf("SPIF_WriteEnable() Error\r\n");
@@ -159,7 +161,7 @@ bool SPIF_WriteDisable(SPIF_HandleTypeDef *Handle)
 	bool retVal = true;
 	uint8_t tx[1] = {SPIF_CMD_WRITEDISABLE};
 	SPIF_CsPin(Handle, 0);
-	if (SPIF_Transmit(Handle, tx, 1, 100) == false)
+	if (SPIF_TransmitReceive(Handle, tx, tx, 1, 100) == false)
 	{
 		retVal = false;
 		dprintf("SPIF_WriteDisable() Error\r\n");
@@ -222,10 +224,11 @@ bool SPIF_WriteReg1(SPIF_HandleTypeDef *Handle, uint8_t Data)
 {
 	bool retVal = true;
 	uint8_t tx[2] = {SPIF_CMD_WRITESTATUS1, Data};
+	uint8_t cmd = SPIF_CMD_WRITESTATUSEN;
 	do
 	{
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_Transmit(Handle, (uint8_t *)SPIF_CMD_WRITESTATUSEN, 1, 100) == false)
+		if (SPIF_TransmitReceive(Handle, &cmd, &cmd, 1, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -233,7 +236,7 @@ bool SPIF_WriteReg1(SPIF_HandleTypeDef *Handle, uint8_t Data)
 		}
 		SPIF_CsPin(Handle, 1);
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_Transmit(Handle, tx, 2, 100) == false)
+		if (SPIF_TransmitReceive(Handle, tx, tx, 2, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -251,10 +254,11 @@ bool SPIF_WriteReg2(SPIF_HandleTypeDef *Handle, uint8_t Data)
 {
 	bool retVal = true;
 	uint8_t tx[2] = {SPIF_CMD_WRITESTATUS2, Data};
+	uint8_t cmd = SPIF_CMD_WRITESTATUSEN;
 	do
 	{
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_Transmit(Handle, (uint8_t *)SPIF_CMD_WRITESTATUSEN, 1, 100) == false)
+		if (SPIF_TransmitReceive(Handle, &cmd, &cmd, 1, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -262,7 +266,7 @@ bool SPIF_WriteReg2(SPIF_HandleTypeDef *Handle, uint8_t Data)
 		}
 		SPIF_CsPin(Handle, 1);
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_Transmit(Handle, tx, 2, 100) == false)
+		if (SPIF_TransmitReceive(Handle, tx, tx, 2, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -280,10 +284,11 @@ bool SPIF_WriteReg3(SPIF_HandleTypeDef *Handle, uint8_t Data)
 {
 	bool retVal = true;
 	uint8_t tx[2] = {SPIF_CMD_WRITESTATUS3, Data};
+	uint8_t cmd = SPIF_CMD_WRITESTATUSEN;
 	do
 	{
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_Transmit(Handle, (uint8_t *)SPIF_CMD_WRITESTATUSEN, 1, 100) == false)
+		if (SPIF_TransmitReceive(Handle, &cmd, &cmd, 1, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -291,7 +296,7 @@ bool SPIF_WriteReg3(SPIF_HandleTypeDef *Handle, uint8_t Data)
 		}
 		SPIF_CsPin(Handle, 1);
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_Transmit(Handle, tx, 2, 100) == false)
+		if (SPIF_TransmitReceive(Handle, tx, tx, 2, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -497,6 +502,18 @@ bool SPIF_WriteFn(SPIF_HandleTypeDef *Handle, uint32_t PageNumber, uint8_t *Data
 			Size = maximum;
 		}
 		address = SPIF_PageToAddress(PageNumber) + Offset;
+#if SPIF_DEBUG == SPIF_DEBUG_FULL
+			dprintf("SPIF WRITING {\r\n0x%02X", Data[0]);
+			for (int i = 1; i < Size; i++)
+			{
+				if (i % 8 == 0)
+				{
+					dprintf("\r\n");
+				}
+				dprintf(", 0x%02X", Data[i]);
+			}
+			dprintf("\r\n}\r\n");
+#endif
 		if (SPIF_WriteEnable(Handle) == false)
 		{
 			break;
@@ -509,7 +526,7 @@ bool SPIF_WriteFn(SPIF_HandleTypeDef *Handle, uint32_t PageNumber, uint8_t *Data
 			tx[2] = (address & 0x00FF0000) >> 16;
 			tx[3] = (address & 0x0000FF00) >> 8;
 			tx[4] = (address & 0x000000FF);
-			if (SPIF_Transmit(Handle, tx, 5, 100) == false)
+			if (SPIF_TransmitReceive(Handle, tx, tx, 5, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -521,13 +538,13 @@ bool SPIF_WriteFn(SPIF_HandleTypeDef *Handle, uint32_t PageNumber, uint8_t *Data
 			tx[1] = (address & 0x00FF0000) >> 16;
 			tx[2] = (address & 0x0000FF00) >> 8;
 			tx[3] = (address & 0x000000FF);
-			if (SPIF_Transmit(Handle, tx, 4, 100) == false)
+			if (SPIF_TransmitReceive(Handle, tx, tx, 4, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
 			}
 		}
-		if (SPIF_Transmit(Handle, Data, Size, 1000) == false)
+		if (SPIF_TransmitReceive(Handle, Data, Data, Size, 1000) == false)
 		{
 			SPIF_CsPin(Handle, 1);
 			break;
@@ -536,18 +553,6 @@ bool SPIF_WriteFn(SPIF_HandleTypeDef *Handle, uint32_t PageNumber, uint8_t *Data
 		if (SPIF_WaitForWriting(Handle, 100))
 		{
 			dprintf("SPIF_WritePage() %d BYTES WITERN DONE AFTER %ld ms\r\n", (uint16_t)Size, HAL_GetTick() - dbgTime);
-#if SPIF_DEBUG == SPIF_DEBUG_FULL
-			dprintf("{\r\n0x%02X", Data[0]);
-			for (int i = 1; i < Size; i++)
-			{
-				if (i % 8 == 0)
-				{
-					dprintf("\r\n");
-				}
-				dprintf(", 0x%02X", Data[i]);
-			}
-			dprintf("\r\n}\r\n");
-#endif
 			retVal = true;
 		}
 
@@ -577,7 +582,7 @@ bool SPIF_ReadFn(SPIF_HandleTypeDef *Handle, uint32_t Address, uint8_t *Data, ui
 			tx[2] = (Address & 0x00FF0000) >> 16;
 			tx[3] = (Address & 0x0000FF00) >> 8;
 			tx[4] = (Address & 0x000000FF);
-			if (SPIF_Transmit(Handle, tx, 5, 100) == false)
+			if (SPIF_TransmitReceive(Handle, tx, tx, 5, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -589,7 +594,7 @@ bool SPIF_ReadFn(SPIF_HandleTypeDef *Handle, uint32_t Address, uint8_t *Data, ui
 			tx[1] = (Address & 0x00FF0000) >> 16;
 			tx[2] = (Address & 0x0000FF00) >> 8;
 			tx[3] = (Address & 0x000000FF);
-			if (SPIF_Transmit(Handle, tx, 4, 100) == false)
+			if (SPIF_TransmitReceive(Handle, tx, tx, 4, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -679,7 +684,7 @@ bool SPIF_EraseChip(SPIF_HandleTypeDef *Handle)
 			break;
 		}
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_Transmit(Handle, tx, 1, 100) == false)
+		if (SPIF_TransmitReceive(Handle, tx, tx, 1, 100) == false)
 		{
 			SPIF_CsPin(Handle, 1);
 			break;
@@ -729,7 +734,7 @@ bool SPIF_EraseSector(SPIF_HandleTypeDef *Handle, uint32_t Sector)
 			tx[2] = (address & 0x00FF0000) >> 16;
 			tx[3] = (address & 0x0000FF00) >> 8;
 			tx[4] = (address & 0x000000FF);
-			if (SPIF_Transmit(Handle, tx, 5, 100) == false)
+			if (SPIF_TransmitReceive(Handle, tx, tx, 5, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -741,7 +746,7 @@ bool SPIF_EraseSector(SPIF_HandleTypeDef *Handle, uint32_t Sector)
 			tx[1] = (address & 0x00FF0000) >> 16;
 			tx[2] = (address & 0x0000FF00) >> 8;
 			tx[3] = (address & 0x000000FF);
-			if (SPIF_Transmit(Handle, tx, 4, 100) == false)
+			if (SPIF_TransmitReceive(Handle, tx, tx, 4, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -792,7 +797,7 @@ bool SPIF_EraseBlock(SPIF_HandleTypeDef *Handle, uint32_t Block)
 			tx[2] = (address & 0x00FF0000) >> 16;
 			tx[3] = (address & 0x0000FF00) >> 8;
 			tx[4] = (address & 0x000000FF);
-			if (SPIF_Transmit(Handle, tx, 5, 100) == false)
+			if (SPIF_TransmitReceive(Handle, tx, tx, 5, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -804,7 +809,7 @@ bool SPIF_EraseBlock(SPIF_HandleTypeDef *Handle, uint32_t Block)
 			tx[1] = (address & 0x00FF0000) >> 16;
 			tx[2] = (address & 0x0000FF00) >> 8;
 			tx[3] = (address & 0x000000FF);
-			if (SPIF_Transmit(Handle, tx, 4, 100) == false)
+			if (SPIF_TransmitReceive(Handle, tx, tx, 4, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -870,16 +875,7 @@ bool SPIF_WritePage(SPIF_HandleTypeDef *Handle, uint32_t PageNumber, uint8_t *Da
 {
 	SPIF_Lock(Handle);
 	bool retVal = false;
-	do
-	{
-		if ((Offset >= SPIF_PAGE_SIZE) || (PageNumber >= Handle->PageCnt))
-		{
-			break;
-		}
-		retVal = SPIF_WriteFn(Handle, PageNumber, Data, Size, Offset);
-
-	} while (0);
-
+	retVal = SPIF_WriteFn(Handle, PageNumber, Data, Size, Offset);
 	SPIF_UnLock(Handle);
 	return retVal;
 }
@@ -892,7 +888,7 @@ bool SPIF_WriteSector(SPIF_HandleTypeDef *Handle, uint32_t SectorNumber, uint8_t
 	bool retVal = true;
 	do
 	{
-		if ((Offset >= SPIF_SECTOR_SIZE) || (SectorNumber >= Handle->SectorCnt))
+		if (Offset >= SPIF_SECTOR_SIZE)
 		{
 			retVal = false;
 			break;
@@ -932,7 +928,7 @@ bool SPIF_WriteBlock(SPIF_HandleTypeDef *Handle, uint32_t BlockNumber, uint8_t *
 	bool retVal = true;
 	do
 	{
-		if ((Offset >= SPIF_BLOCK_SIZE) || (BlockNumber >= Handle->BlockCnt))
+		if (Offset >= SPIF_BLOCK_SIZE)
 		{
 			retVal = false;
 			break;
@@ -1000,21 +996,13 @@ bool SPIF_ReadSector(SPIF_HandleTypeDef *Handle, uint32_t SectorNumber, uint8_t 
 {
 	SPIF_Lock(Handle);
 	bool retVal = false;
-	do
+	uint32_t address = SPIF_SectorToAddress(SectorNumber);
+	uint32_t maximum = SPIF_SECTOR_SIZE - Offset;
+	if (Size > maximum)
 	{
-		if ((Offset >= SPIF_SECTOR_SIZE) || (SectorNumber >= Handle->SectorCnt))
-		{
-			break;
-		}
-		uint32_t address = SPIF_SectorToAddress(SectorNumber);
-		uint32_t maximum = SPIF_SECTOR_SIZE - Offset;
-		if (Size > maximum)
-		{
 		Size = maximum;
-		}
-		retVal = SPIF_ReadFn(Handle, address, Data, Size);
-	} while (0);
-
+	}
+	retVal = SPIF_ReadFn(Handle, address, Data, Size);
 	SPIF_UnLock(Handle);
 	return retVal;
 }
@@ -1025,21 +1013,13 @@ bool SPIF_ReadBlock(SPIF_HandleTypeDef *Handle, uint32_t BlockNumber, uint8_t *D
 {
 	SPIF_Lock(Handle);
 	bool retVal = false;
-	do
+	uint32_t address = SPIF_BlockToAddress(BlockNumber);
+	uint32_t maximum = SPIF_BLOCK_SIZE - Offset;
+	if (Size > maximum)
 	{
-		if ((Offset >= SPIF_BLOCK_SIZE) || (BlockNumber >= Handle->BlockCnt))
-		{
-			break;
-		}
-	  uint32_t address = SPIF_BlockToAddress(BlockNumber);
-	  uint32_t maximum = SPIF_BLOCK_SIZE - Offset;
-	  if (Size > maximum)
-	  {
-	  	Size = maximum;
-	  }
-	  retVal = SPIF_ReadFn(Handle, address, Data, Size);
-	} while (0);
-
+		Size = maximum;
+	}
+	retVal = SPIF_ReadFn(Handle, address, Data, Size);
 	SPIF_UnLock(Handle);
 	return retVal;
 }

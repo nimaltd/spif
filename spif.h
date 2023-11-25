@@ -9,12 +9,15 @@
   Youtube:    https://www.youtube.com/@nimaltd
   Instagram:  https://instagram.com/github.NimaLTD
 
-  Version:    2.0.1
+  Version:    2.1.0
 
   History:
+              2.1.0
+              - Add Support HAL-DMA
+              - Remove SPI_Trasmit function
+
               2.0.1
-              - Remove SPIF_Receive() function
-              - Add check size and offset in SPIF_Read
+              - Remove SPI_Receive function
 
               2.0.0
               - Rewrite again
