@@ -128,10 +128,10 @@ bool SPIF_TransmitReceive(SPIF_HandleTypeDef *Handle, uint8_t *Tx, uint8_t *Rx, 
 				break;
 			}
 			if (HAL_SPI_GetState(Handle->HSpi) == HAL_SPI_STATE_READY)
-      {
+			{
 				retVal = true;
 				break;
-      }
+			}
 		}
 	}
 #endif
