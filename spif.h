@@ -9,9 +9,12 @@
   Youtube:    https://www.youtube.com/@nimaltd
   Instagram:  https://instagram.com/github.NimaLTD
 
-  Version:    2.1.0
+  Version:    2.2.0
 
   History:
+							2.2.0
+              - Add SPI_Trasmit and SPI_Receive again :)
+
               2.1.0
               - Add Support HAL-DMA
               - Remove SPI_Trasmit function

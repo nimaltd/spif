@@ -128,10 +128,94 @@ bool SPIF_TransmitReceive(SPIF_HandleTypeDef *Handle, uint8_t *Tx, uint8_t *Rx, 
 				break;
 			}
 			if (HAL_SPI_GetState(Handle->HSpi) == HAL_SPI_STATE_READY)
-			{
+      {
 				retVal = true;
 				break;
+      }
+		}
+	}
+#endif
+	return retVal;
+}
+
+/***********************************************************************************************************/
+
+bool SPIF_Transmit(SPIF_HandleTypeDef *Handle, uint8_t *Tx, size_t Size, uint32_t Timeout)
+{
+	bool retVal = false;
+#if (SPIF_PLATFORM == SPIF_PLATFORM_HAL)
+	if (HAL_SPI_Transmit(Handle->HSpi, Tx, Size, Timeout) == HAL_OK)
+	{
+		retVal = true;
+	}
+	else
+	{
+		dprintf("SPIF TIMEOUT\r\n");
+	}
+#elif (SPIF_PLATFORM == SPIF_PLATFORM_HAL_DMA)
+	uint32_t startTime = HAL_GetTick();
+	if (HAL_SPI_Transmit_DMA(Handle->HSpi, Tx, Size) != HAL_OK)
+	{
+		dprintf("SPIF TRANSFER ERROR\r\n");
+	}
+	else
+	{
+		while (1)
+		{
+			SPIF_Delay(1);
+			if (HAL_GetTick() - startTime >= Timeout)
+			{
+				dprintf("SPIF TIMEOUT\r\n");
+				HAL_SPI_DMAStop(Handle->HSpi);
+				break;
 			}
+			if (HAL_SPI_GetState(Handle->HSpi) == HAL_SPI_STATE_READY)
+      {
+				retVal = true;
+				break;
+      }
+		}
+	}
+#endif
+	return retVal;
+}
+
+/***********************************************************************************************************/
+
+bool SPIF_Receive(SPIF_HandleTypeDef *Handle, uint8_t *Rx, size_t Size, uint32_t Timeout)
+{
+	bool retVal = false;
+#if (SPIF_PLATFORM == SPIF_PLATFORM_HAL)
+	if (HAL_SPI_Receive(Handle->HSpi, Rx, Size, Timeout) == HAL_OK)
+	{
+		retVal = true;
+	}
+	else
+	{
+		dprintf("SPIF TIMEOUT\r\n");
+	}
+#elif (SPIF_PLATFORM == SPIF_PLATFORM_HAL_DMA)
+	uint32_t startTime = HAL_GetTick();
+	if (HAL_SPI_Receive_DMA(Handle->HSpi, Rx, Size) != HAL_OK)
+	{
+		dprintf("SPIF TRANSFER ERROR\r\n");
+	}
+	else
+	{
+		while (1)
+		{
+			SPIF_Delay(1);
+			if (HAL_GetTick() - startTime >= Timeout)
+			{
+				dprintf("SPIF TIMEOUT\r\n");
+				HAL_SPI_DMAStop(Handle->HSpi);
+				break;
+			}
+			if (HAL_SPI_GetState(Handle->HSpi) == HAL_SPI_STATE_READY)
+      {
+				retVal = true;
+				break;
+      }
 		}
 	}
 #endif
@@ -145,7 +229,7 @@ bool SPIF_WriteEnable(SPIF_HandleTypeDef *Handle)
 	bool retVal = true;
 	uint8_t tx[1] = {SPIF_CMD_WRITEENABLE};
 	SPIF_CsPin(Handle, 0);
-	if (SPIF_TransmitReceive(Handle, tx, tx, 1, 100) == false)
+	if (SPIF_Transmit(Handle, tx, 1, 100) == false)
 	{
 		retVal = false;
 		dprintf("SPIF_WriteEnable() Error\r\n");
@@ -161,7 +245,7 @@ bool SPIF_WriteDisable(SPIF_HandleTypeDef *Handle)
 	bool retVal = true;
 	uint8_t tx[1] = {SPIF_CMD_WRITEDISABLE};
 	SPIF_CsPin(Handle, 0);
-	if (SPIF_TransmitReceive(Handle, tx, tx, 1, 100) == false)
+	if (SPIF_Transmit(Handle, tx, 1, 100) == false)
 	{
 		retVal = false;
 		dprintf("SPIF_WriteDisable() Error\r\n");
@@ -228,7 +312,7 @@ bool SPIF_WriteReg1(SPIF_HandleTypeDef *Handle, uint8_t Data)
 	do
 	{
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_TransmitReceive(Handle, &cmd, &cmd, 1, 100) == false)
+		if (SPIF_Transmit(Handle, &cmd, 1, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -236,7 +320,7 @@ bool SPIF_WriteReg1(SPIF_HandleTypeDef *Handle, uint8_t Data)
 		}
 		SPIF_CsPin(Handle, 1);
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_TransmitReceive(Handle, tx, tx, 2, 100) == false)
+		if (SPIF_Transmit(Handle, tx, 2, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -258,7 +342,7 @@ bool SPIF_WriteReg2(SPIF_HandleTypeDef *Handle, uint8_t Data)
 	do
 	{
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_TransmitReceive(Handle, &cmd, &cmd, 1, 100) == false)
+		if (SPIF_Transmit(Handle, &cmd, 1, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -266,7 +350,7 @@ bool SPIF_WriteReg2(SPIF_HandleTypeDef *Handle, uint8_t Data)
 		}
 		SPIF_CsPin(Handle, 1);
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_TransmitReceive(Handle, tx, tx, 2, 100) == false)
+		if (SPIF_Transmit(Handle, tx, 2, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -288,7 +372,7 @@ bool SPIF_WriteReg3(SPIF_HandleTypeDef *Handle, uint8_t Data)
 	do
 	{
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_TransmitReceive(Handle, &cmd, &cmd, 1, 100) == false)
+		if (SPIF_Transmit(Handle, &cmd, 1, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -296,7 +380,7 @@ bool SPIF_WriteReg3(SPIF_HandleTypeDef *Handle, uint8_t Data)
 		}
 		SPIF_CsPin(Handle, 1);
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_TransmitReceive(Handle, tx, tx, 2, 100) == false)
+		if (SPIF_Transmit(Handle, tx, 2, 100) == false)
 		{
 			retVal = false;
 			SPIF_CsPin(Handle, 1);
@@ -526,7 +610,7 @@ bool SPIF_WriteFn(SPIF_HandleTypeDef *Handle, uint32_t PageNumber, uint8_t *Data
 			tx[2] = (address & 0x00FF0000) >> 16;
 			tx[3] = (address & 0x0000FF00) >> 8;
 			tx[4] = (address & 0x000000FF);
-			if (SPIF_TransmitReceive(Handle, tx, tx, 5, 100) == false)
+			if (SPIF_Transmit(Handle, tx, 5, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -538,13 +622,13 @@ bool SPIF_WriteFn(SPIF_HandleTypeDef *Handle, uint32_t PageNumber, uint8_t *Data
 			tx[1] = (address & 0x00FF0000) >> 16;
 			tx[2] = (address & 0x0000FF00) >> 8;
 			tx[3] = (address & 0x000000FF);
-			if (SPIF_TransmitReceive(Handle, tx, tx, 4, 100) == false)
+			if (SPIF_Transmit(Handle, tx, 4, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
 			}
 		}
-		if (SPIF_TransmitReceive(Handle, Data, Data, Size, 1000) == false)
+		if (SPIF_Transmit(Handle, Data, Size, 1000) == false)
 		{
 			SPIF_CsPin(Handle, 1);
 			break;
@@ -582,7 +666,7 @@ bool SPIF_ReadFn(SPIF_HandleTypeDef *Handle, uint32_t Address, uint8_t *Data, ui
 			tx[2] = (Address & 0x00FF0000) >> 16;
 			tx[3] = (Address & 0x0000FF00) >> 8;
 			tx[4] = (Address & 0x000000FF);
-			if (SPIF_TransmitReceive(Handle, tx, tx, 5, 100) == false)
+			if (SPIF_Transmit(Handle, tx, 5, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -594,13 +678,13 @@ bool SPIF_ReadFn(SPIF_HandleTypeDef *Handle, uint32_t Address, uint8_t *Data, ui
 			tx[1] = (Address & 0x00FF0000) >> 16;
 			tx[2] = (Address & 0x0000FF00) >> 8;
 			tx[3] = (Address & 0x000000FF);
-			if (SPIF_TransmitReceive(Handle, tx, tx, 4, 100) == false)
+			if (SPIF_Transmit(Handle, tx, 4, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
 			}
 		}
-		if (SPIF_TransmitReceive(Handle, Data, Data, Size, 2000) == false)
+		if (SPIF_Receive(Handle, Data, Size, 2000) == false)
 		{
 			SPIF_CsPin(Handle, 1);
 			break;
@@ -684,7 +768,7 @@ bool SPIF_EraseChip(SPIF_HandleTypeDef *Handle)
 			break;
 		}
 		SPIF_CsPin(Handle, 0);
-		if (SPIF_TransmitReceive(Handle, tx, tx, 1, 100) == false)
+		if (SPIF_Transmit(Handle, tx, 1, 100) == false)
 		{
 			SPIF_CsPin(Handle, 1);
 			break;
@@ -734,7 +818,7 @@ bool SPIF_EraseSector(SPIF_HandleTypeDef *Handle, uint32_t Sector)
 			tx[2] = (address & 0x00FF0000) >> 16;
 			tx[3] = (address & 0x0000FF00) >> 8;
 			tx[4] = (address & 0x000000FF);
-			if (SPIF_TransmitReceive(Handle, tx, tx, 5, 100) == false)
+			if (SPIF_Transmit(Handle, tx, 5, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -746,7 +830,7 @@ bool SPIF_EraseSector(SPIF_HandleTypeDef *Handle, uint32_t Sector)
 			tx[1] = (address & 0x00FF0000) >> 16;
 			tx[2] = (address & 0x0000FF00) >> 8;
 			tx[3] = (address & 0x000000FF);
-			if (SPIF_TransmitReceive(Handle, tx, tx, 4, 100) == false)
+			if (SPIF_Transmit(Handle, tx, 4, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -797,7 +881,7 @@ bool SPIF_EraseBlock(SPIF_HandleTypeDef *Handle, uint32_t Block)
 			tx[2] = (address & 0x00FF0000) >> 16;
 			tx[3] = (address & 0x0000FF00) >> 8;
 			tx[4] = (address & 0x000000FF);
-			if (SPIF_TransmitReceive(Handle, tx, tx, 5, 100) == false)
+			if (SPIF_Transmit(Handle, tx, 5, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
@@ -809,7 +893,7 @@ bool SPIF_EraseBlock(SPIF_HandleTypeDef *Handle, uint32_t Block)
 			tx[1] = (address & 0x00FF0000) >> 16;
 			tx[2] = (address & 0x0000FF00) >> 8;
 			tx[3] = (address & 0x000000FF);
-			if (SPIF_TransmitReceive(Handle, tx, tx, 4, 100) == false)
+			if (SPIF_Transmit(Handle, tx, 4, 100) == false)
 			{
 				SPIF_CsPin(Handle, 1);
 				break;
