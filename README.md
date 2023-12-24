@@ -13,6 +13,8 @@
 * Install Library from https://github.com/nimaltd/STM32-PACK/raw/main/SPIF/NimaLTD.I-CUBE-SPIF.pdsc
 * Add and enable it.
 * Enable SPI and a GPIO as output-pushpull (CS pin).Connect WP and HOLD to VCC.
+* Select 'Generate peripheral initialization as a pair of .c/.h files per peripheral' on the Code Generator Tab.
+* Generate Code.
 * Define a structure of `SPIF_HandleTypeDef`.
 * Call `SPIF_Init()` and enjoy.
 ---
