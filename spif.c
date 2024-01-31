@@ -919,20 +919,21 @@ bool SPIF_WriteAddress(SPIF_HandleTypeDef *Handle, uint32_t Address, uint8_t *Da
 {
 	SPIF_Lock(Handle);
 	bool retVal = false;
-	uint32_t page, add, offset, remaining, length, index = 0;
+	uint32_t page, add, offset, remaining, length, ,maximum, index = 0;
 	add = Address;
 	remaining = Size;
 	do
 	{
 		page = SPIF_AddressToPage(add);
 		offset = add % SPIF_PAGE_SIZE;
-		if (remaining <= SPIF_PAGE_SIZE)
+		maximum = SPIF_PAGE_SIZE - offset;
+		if (remaining <= maximum)
 		{
 			length = remaining;
 		}
 		else
 		{
-			length = SPIF_PAGE_SIZE - offset;
+			length = maximum;
 		}
 		if (SPIF_WriteFn(Handle, page, &Data[index], length, offset) == false)
 		{

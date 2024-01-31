@@ -9,10 +9,15 @@
   Youtube:    https://www.youtube.com/@nimaltd
   Instagram:  https://instagram.com/github.NimaLTD
 
-  Version:    2.2.0
+  Version:    2.2.1
 
   History:
-							2.2.0
+  
+			  2.2.1
+              - Update SPIF_WriteAddress()
+
+  
+			  2.2.0
               - Add SPI_Trasmit and SPI_Receive again :)
 
               2.1.0
