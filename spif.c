@@ -919,7 +919,7 @@ bool SPIF_WriteAddress(SPIF_HandleTypeDef *Handle, uint32_t Address, uint8_t *Da
 {
 	SPIF_Lock(Handle);
 	bool retVal = false;
-	uint32_t page, add, offset, remaining, length, ,maximum, index = 0;
+	uint32_t page, add, offset, remaining, length, maximum, index = 0;
 	add = Address;
 	remaining = Size;
 	do
