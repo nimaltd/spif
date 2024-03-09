@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2023 STMicroelectronics.
+  * Copyright (c) 2024 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -30,13 +30,14 @@
 #define SPIF_PLATFORM_HAL                     0
 #define SPIF_PLATFORM_HAL_DMA                 1
 
-#define SPIF_CMSIS_RTOS_DISABLE               0
-#define SPIF_CMSIS_RTOS_V1                    1
-#define SPIF_CMSIS_RTOS_V2                    2
+#define SPIF_RTOS_DISABLE                     0
+#define SPIF_RTOS_CMSIS_V1                    1
+#define SPIF_RTOS_CMSIS_V2                    2
+#define SPIF_RTOS_THREADX                     3
 
 /**
-	MiddleWare name : NimaLTD.I-CUBE-SPIF.2.0.0
-	MiddleWare fileName : NimaLTD.I-CUBE-SPIF_conf.h
+	MiddleWare name : NimaLTD.I-CUBE-SPIF.2.3.0
+	MiddleWare fileName : ./NimaLTD.I-CUBE-SPIF_conf.h
 */
 /*---------- SPIF_DEBUG  -----------*/
 #define SPIF_DEBUG      SPIF_DEBUG_DISABLE
@@ -44,8 +45,8 @@
 /*---------- SPIF_PLATFORM  -----------*/
 #define SPIF_PLATFORM      SPIF_PLATFORM_HAL
 
-/*---------- SPIF_CMSIS_RTOS  -----------*/
-#define SPIF_CMSIS_RTOS      SPIF_CMSIS_RTOS_DISABLE
+/*---------- SPIF_RTOS  -----------*/
+#define SPIF_RTOS      SPIF_RTOS_DISABLE
 
 #ifdef __cplusplus
 }

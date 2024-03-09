@@ -9,30 +9,33 @@
   Youtube:    https://www.youtube.com/@nimaltd
   Instagram:  https://instagram.com/github.NimaLTD
 
-  Version:    2.2.2
+  Version:    2.3.0
 
   History:
   
-				2.2.2
+        2.3.0
+              - Added ThreadX Configuration
+
+        2.2.2
               - Compile error
 
-			  2.2.1
-              - Update SPIF_WriteAddress()
+        2.2.1
+              - Updated SPIF_WriteAddress()
 
   
-			  2.2.0
-              - Add SPI_Trasmit and SPI_Receive again :)
+        2.2.0
+              - Added SPI_Trasmit and SPI_Receive again :)
 
               2.1.0
-              - Add Support HAL-DMA
-              - Remove SPI_Trasmit function
+              - Added Support HAL-DMA
+              - Removed SPI_Trasmit function
 
               2.0.1
-              - Remove SPI_Receive function
+              - Removed SPI_Receive function
 
               2.0.0
               - Rewrite again
-              - Support STM32CubeMx Packet installer
+              - Supported STM32CubeMx Packet installer
 
 ***********************************************************************************************************/
 
@@ -41,24 +44,18 @@ extern "C"
 {
 #endif
 
+/************************************************************************************************************
+**************    Include Headers
+************************************************************************************************************/
+
 #include <stdbool.h>
 #include <string.h>
 #include "NimaLTD.I-CUBE-SPIF_conf.h"
 #include "spi.h"
 
-#if SPIF_CMSIS_RTOS == SPIF_CMSIS_RTOS_DISABLE
-#define SPIF_Delay(x) HAL_Delay(x)
-#elif SPIF_CMSIS_RTOS == SPIF_CMSIS_RTOS_V1
-#include "cmsis_os.h"
-#define SPIF_Delay(x) osDelay(x)
-#else
-#include "cmsis_os2.h"
-#define SPIF_Delay(x) osDelay(x)
-#endif
-
-/***********************************************************************************************************/
-/***********************************************************************************************************/
-/***********************************************************************************************************/
+/************************************************************************************************************
+**************    Public Definitions
+************************************************************************************************************/
 
 #define SPIF_PAGE_SIZE                      0x100
 #define SPIF_SECTOR_SIZE                    0x1000
@@ -76,65 +73,69 @@ extern "C"
 #define SPIF_AddressToSector(Address)      (Address / SPIF_SECTOR_SIZE)
 #define SPIF_AddressToBlock(Address)       (Address / SPIF_BLOCK_SIZE)
 
+/************************************************************************************************************
+**************    Public struct/enum
+************************************************************************************************************/
+
 typedef enum
 {
-	SPIF_MANUFACTOR_ERROR = 0,
-	SPIF_MANUFACTOR_WINBOND = 0xEF,
-	SPIF_MANUFACTOR_ISSI = 0xD5,
-	SPIF_MANUFACTOR_MICRON = 0x20,
-	SPIF_MANUFACTOR_GIGADEVICE = 0xC8,
-	SPIF_MANUFACTOR_MACRONIX = 0xC2,
-	SPIF_MANUFACTOR_SPANSION = 0x01,
-	SPIF_MANUFACTOR_AMIC = 0x37,
-	SPIF_MANUFACTOR_SST = 0xBF,
-	SPIF_MANUFACTOR_HYUNDAI = 0xAD,
-	SPIF_MANUFACTOR_ATMEL = 0x1F,
-	SPIF_MANUFACTOR_FUDAN = 0xA1,
-	SPIF_MANUFACTOR_ESMT = 0x8C,
-	SPIF_MANUFACTOR_INTEL = 0x89,
-	SPIF_MANUFACTOR_SANYO = 0x62,
-	SPIF_MANUFACTOR_FUJITSU = 0x04,
-	SPIF_MANUFACTOR_EON = 0x1C,
-	SPIF_MANUFACTOR_PUYA = 0x85,
+  SPIF_MANUFACTOR_ERROR = 0,
+  SPIF_MANUFACTOR_WINBOND = 0xEF,
+  SPIF_MANUFACTOR_ISSI = 0xD5,
+  SPIF_MANUFACTOR_MICRON = 0x20,
+  SPIF_MANUFACTOR_GIGADEVICE = 0xC8,
+  SPIF_MANUFACTOR_MACRONIX = 0xC2,
+  SPIF_MANUFACTOR_SPANSION = 0x01,
+  SPIF_MANUFACTOR_AMIC = 0x37,
+  SPIF_MANUFACTOR_SST = 0xBF,
+  SPIF_MANUFACTOR_HYUNDAI = 0xAD,
+  SPIF_MANUFACTOR_ATMEL = 0x1F,
+  SPIF_MANUFACTOR_FUDAN = 0xA1,
+  SPIF_MANUFACTOR_ESMT = 0x8C,
+  SPIF_MANUFACTOR_INTEL = 0x89,
+  SPIF_MANUFACTOR_SANYO = 0x62,
+  SPIF_MANUFACTOR_FUJITSU = 0x04,
+  SPIF_MANUFACTOR_EON = 0x1C,
+  SPIF_MANUFACTOR_PUYA = 0x85,
 
 } SPIF_ManufactorTypeDef;
 
 typedef enum
 {
-	SPIF_SIZE_ERROR = 0,
-	SPIF_SIZE_1MBIT = 0x11,
-	SPIF_SIZE_2MBIT = 0x12,
-	SPIF_SIZE_4MBIT = 0x13,
-	SPIF_SIZE_8MBIT = 0x14,
-	SPIF_SIZE_16MBIT = 0x15,
-	SPIF_SIZE_32MBIT = 0x16,
-	SPIF_SIZE_64MBIT = 0x17,
-	SPIF_SIZE_128MBIT = 0x18,
-	SPIF_SIZE_256MBIT = 0x19,
-	SPIF_SIZE_512MBIT = 0x20,
+  SPIF_SIZE_ERROR = 0,
+  SPIF_SIZE_1MBIT = 0x11,
+  SPIF_SIZE_2MBIT = 0x12,
+  SPIF_SIZE_4MBIT = 0x13,
+  SPIF_SIZE_8MBIT = 0x14,
+  SPIF_SIZE_16MBIT = 0x15,
+  SPIF_SIZE_32MBIT = 0x16,
+  SPIF_SIZE_64MBIT = 0x17,
+  SPIF_SIZE_128MBIT = 0x18,
+  SPIF_SIZE_256MBIT = 0x19,
+  SPIF_SIZE_512MBIT = 0x20,
 
 } SPIF_SizeTypeDef;
 
 typedef struct
 {
-	SPI_HandleTypeDef      *HSpi;
-	GPIO_TypeDef           *Gpio;
-	SPIF_ManufactorTypeDef Manufactor;
-	SPIF_SizeTypeDef       Size;
-	uint8_t                Inited;
-	uint8_t                MemType;
-	uint8_t                Lock;
-	uint8_t                Reserved;
-	uint32_t               Pin;
-	uint32_t               PageCnt;
-	uint32_t               SectorCnt;
-	uint32_t               BlockCnt;
+  SPI_HandleTypeDef      *HSpi;
+  GPIO_TypeDef           *Gpio;
+  SPIF_ManufactorTypeDef Manufactor;
+  SPIF_SizeTypeDef       Size;
+  uint8_t                Inited;
+  uint8_t                MemType;
+  uint8_t                Lock;
+  uint8_t                Reserved;
+  uint32_t               Pin;
+  uint32_t               PageCnt;
+  uint32_t               SectorCnt;
+  uint32_t               BlockCnt;
 
 } SPIF_HandleTypeDef;
 
-/***********************************************************************************************************/
-/***********************************************************************************************************/
-/***********************************************************************************************************/
+/************************************************************************************************************
+**************    Public Functions
+************************************************************************************************************/
 
 bool SPIF_Init(SPIF_HandleTypeDef *Handle, SPI_HandleTypeDef *HSpi, GPIO_TypeDef *Gpio, uint16_t Pin);
 
