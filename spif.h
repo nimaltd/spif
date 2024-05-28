@@ -9,10 +9,13 @@
   Youtube:    https://www.youtube.com/@nimaltd
   Instagram:  https://instagram.com/github.NimaLTD
 
-  Version:    2.3.0
+  Version:    2.3.1
 
   History:
   
+        2.3.1
+              - Fixed SPIF_WriteSector() and SPIF_WriteBlock()
+              
         2.3.0
               - Added ThreadX Configuration
 
