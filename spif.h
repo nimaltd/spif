@@ -9,24 +9,26 @@
   Youtube:    https://www.youtube.com/@nimaltd
   Instagram:  https://instagram.com/github.NimaLTD
 
-  Version:    2.3.1
+  Version:    2.3.2
 
   History:
   
-        2.3.1
+              2.3.2
+              - Fixed SPIF_Read() offset. Fixed ISSI ID
+              
+			  2.3.1
               - Fixed SPIF_WriteSector() and SPIF_WriteBlock()
               
-        2.3.0
+              2.3.0
               - Added ThreadX Configuration
 
-        2.2.2
+              2.2.2
               - Compile error
 
-        2.2.1
+              2.2.1
               - Updated SPIF_WriteAddress()
-
   
-        2.2.0
+              2.2.0
               - Added SPI_Trasmit and SPI_Receive again :)
 
               2.1.0
@@ -84,7 +86,7 @@ typedef enum
 {
   SPIF_MANUFACTOR_ERROR = 0,
   SPIF_MANUFACTOR_WINBOND = 0xEF,
-  SPIF_MANUFACTOR_ISSI = 0xD5,
+  SPIF_MANUFACTOR_ISSI = 0x9D,
   SPIF_MANUFACTOR_MICRON = 0x20,
   SPIF_MANUFACTOR_GIGADEVICE = 0xC8,
   SPIF_MANUFACTOR_MACRONIX = 0xC2,

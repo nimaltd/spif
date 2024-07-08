@@ -1237,7 +1237,7 @@ bool SPIF_ReadPage(SPIF_HandleTypeDef *Handle, uint32_t PageNumber, uint8_t *Dat
 {
   SPIF_Lock(Handle);
   bool retVal = false;
-  uint32_t address = SPIF_PageToAddress(PageNumber);
+  uint32_t address = SPIF_PageToAddress(PageNumber) + Offset;
   uint32_t maximum = SPIF_PAGE_SIZE - Offset;
   if (Size > maximum)
   {
@@ -1266,7 +1266,7 @@ bool SPIF_ReadSector(SPIF_HandleTypeDef *Handle, uint32_t SectorNumber, uint8_t 
 {
   SPIF_Lock(Handle);
   bool retVal = false;
-  uint32_t address = SPIF_SectorToAddress(SectorNumber);
+  uint32_t address = SPIF_SectorToAddress(SectorNumber) + Offset;
   uint32_t maximum = SPIF_SECTOR_SIZE - Offset;
   if (Size > maximum)
   {
@@ -1295,7 +1295,7 @@ bool SPIF_ReadBlock(SPIF_HandleTypeDef *Handle, uint32_t BlockNumber, uint8_t *D
 {
   SPIF_Lock(Handle);
   bool retVal = false;
-  uint32_t address = SPIF_BlockToAddress(BlockNumber);
+  uint32_t address = SPIF_BlockToAddress(BlockNumber) + Offset;
   uint32_t maximum = SPIF_BLOCK_SIZE - Offset;
   if (Size > maximum)
   {
