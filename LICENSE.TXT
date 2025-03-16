@@ -1,0 +1,25 @@
+Software License Terms
+
+This software is dual-licensed:
+
+1. GNU General Public License v2 (GPLv2):
+- You may redistribute and/or modify this software under the terms of GPLv2 as published by the Free Software Foundation.
+- This license does not provide any warranty of any kind, including but not limited to MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+- See <http://www.gnu.org/licenses/> for details.
+
+2. Commercial License:
+- The commercial license removes all GPLv2 restrictions and allows you to redistribute your closed-source products with the Library embedded.
+- This license includes access to software maintenance, such as updates and upgrades. Customers who purchase this license are eligible to receive updates whenever
+they are released. However, the software provider is not obligated to release updates on a specific schedule.
+- The commercial license is available in two models:
+  - Single-Product License: Allows usage in one specific product.
+  - Company-Wide License: Allows usage across all products of the company.
+- No Warranty: The software is provided "AS IS" without any warranties, express or implied, including but not limited to the implied warranties of MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, or NON-INFRINGEMENT.
+- Liability Disclaimer: In no event shall the copyright holder or contributors be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
+
+By using this software under the commercial license, you agree to these terms and acknowledge that no additional guarantees or obligations are provided beyond what is explicitly stated in this document.
+
+---
+
+Copyright © Nima Askari, 2025. All rights reserved.
+For inquiries, contact: nima.askari@gmail.com All rights reserved
