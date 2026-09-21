@@ -15,10 +15,10 @@
 #if SPIF_RTOS == SPIF_RTOS_DISABLE
 #elif SPIF_RTOS == SPIF_RTOS_CMSIS_V1
 #include "cmsis_os.h"
-#include "freertos.h"
+#include "FreeRTOS.h"
 #elif SPIF_RTOS == SPIF_RTOS_CMSIS_V2
 #include "cmsis_os2.h"
-#include "freertos.h"
+#include "FreeRTOS.h"
 #elif SPIF_RTOS == SPIF_RTOS_THREADX
 #include "app_threadx.h"
 #endif
