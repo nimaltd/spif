@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Host unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The same command a developer runs locally. One definition of "run the
+      # tests", so CI and a workstation cannot drift apart.
+      - name: Build and test
+        run: python3 test/run_tests.py
+
+  arm-build:
+    name: Cross compile for Cortex-M
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # spif waits and locks through osal, so it is built here against the real
+      # one, from its default branch, which is also what the installer fetches.
+      - name: Fetch osal
+        uses: actions/checkout@v7
+        with:
+          repository: nimaltd/osal
+          path: osal
+
+      # Third party action, pinned to the v1.13.0 commit rather than the tag, so
+      # the code that runs here cannot change without this line changing.
+      - name: Install arm-none-eabi-gcc
+        uses: carlosperate/arm-none-eabi-gcc-action@98c40e51546516419841748d3210c290df0d2c6c
+
+      # Proves the library builds for the target it is written for. The test
+      # stubs stand in for the application's main.h, and osal's own stubs for
+      # the RTOS headers. Once with both configuration files as they ship, then
+      # for every RTOS with polling and with DMA. Defining a file's include
+      # guard skips it, and the setting is given on the command line instead.
+      - name: Compile
+        run: |
+          flags="-mcpu=cortex-m4 -mthumb -std=c11 -Wall -Wextra -Wpedantic -Werror -Wundef -Os"
+          include="-Itest/stub -Iosal/src -Iosal/test/stub"
+          timeouts="-DSPIF_TIMEOUT_MUTEX_MS=HAL_MAX_DELAY -DSPIF_TIMEOUT_TRANSFER_MS=400U \
+            -DSPIF_TIMEOUT_PAGE_MS=5U -DSPIF_TIMEOUT_SECTOR_MS=600U -DSPIF_TIMEOUT_BLOCK32_MS=2400U \
+            -DSPIF_TIMEOUT_BLOCK_MS=3000U -DSPIF_TIMEOUT_CHIP_PER_MB_MS=18750U"
+          arm-none-eabi-gcc -c src/spif.c -o /tmp/spif.o $include $flags
+          for rtos in NONE CMSIS_V1 CMSIS_V2 THREADX; do
+            for transfer in POLLING DMA; do
+              arm-none-eabi-gcc -c src/spif.c -o /tmp/spif_${rtos}_$transfer.o $include $flags \
+                -DOSAL_CONFIG_H -DOSAL_RTOS=OSAL_RTOS_$rtos \
+                -DSPIF_CONFIG_H -DSPIF_TRANSFER=SPIF_TRANSFER_$transfer $timeouts
+            done
+          done
+          # The LittleFS port, against the littlefs the tests use, for every
+          # RTOS without LFS_THREADSAFE and with it.
+          for rtos in NONE CMSIS_V1 CMSIS_V2 THREADX; do
+            for safe in "" -DLFS_THREADSAFE; do
+              arm-none-eabi-gcc -c src/spif_lfs.c -o /tmp/spif_lfs_$rtos.o $include -Itest/littlefs $flags \
+                -DOSAL_CONFIG_H -DOSAL_RTOS=OSAL_RTOS_$rtos $safe
+            done
+          done

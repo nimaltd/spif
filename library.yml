@@ -1,0 +1,65 @@
+# Read by stm32-installer. See https://github.com/nimaltd/stm32-installer
+#
+# There is no version here. The installer reads it from the @version tag in
+# spif.h, so the source files are the only place it is written.
+
+name: spif
+description: Driver for SPI NOR flash, W25Qxx and compatible, on the STM32 HAL
+repository: https://github.com/nimaltd/spif
+license: Apache-2.0
+
+# What this library is.
+# kind:     driver, middleware, rtos, protocol, filesystem, utility, bsp
+# category: sensor, storage, display, communication, wireless, rtos, timing,
+#           power, input, math, system
+kind: driver
+category: storage
+
+# Capabilities this library gives other libraries. An RTOS would say [rtos].
+provides: []
+
+# What the project has to offer before this library works.
+requires:
+  installer: 1.8.0    # the first that offers options, here littlefs
+  libraries:
+    - nimaltd/osal >= 1.0.0   # the mutex and the waits, bare metal or RTOS
+  hal: true           # HAL SPI, GPIO and the tick
+  cmsis: false
+  rtos: optional      # none, or FreeRTOS or ThreadX, set in osal_config.h
+  hal_modules: [spi]  # must be enabled in stm32xxxx_hal_conf.h
+  peripherals:
+    - type: spi
+      count: 1
+      note: full duplex master, mode 0, 8 bit, with a GPIO output for chip select
+  c_standard: c11
+
+# The code keeps its src/ folder in the user's project, just as it sits here.
+install:
+  layout: mirror
+
+files:
+  headers:
+    - src/spif.h
+    - src/spif_config.h     # replaced on install, its USER CODE section kept
+  sources:
+    - src/spif.c
+
+# Asked about at the first install, and kept after that. --with littlefs or
+# --without littlefs changes it on any later run.
+options:
+  littlefs:
+    description: LittleFS file system on the flash
+    libraries:
+      - nimaltd/littlefs >= 2.11.0
+    files:
+      headers:
+        - src/spif_lfs.h
+      sources:
+        - src/spif_lfs.c
+
+# Copied as they are, alongside the code.
+extras:
+  - LICENSE.md
+  - NOTICE
+  - README.md
+  - CHANGELOG.md

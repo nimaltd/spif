@@ -1,0 +1,7 @@
+# Keep line endings the same for everyone, whatever their git is set to.
+#
+# Without this, a machine with core.autocrlf=true checks files out with CRLF
+# while files written by tools stay LF, and git then reports files as modified
+# when nothing in them has changed. Storing and checking out LF everywhere
+# stops that, and matches what the compiler and the tests expect.
+* text=auto eol=lf

@@ -1,0 +1,48 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Allman braces: the opening brace goes on its own line.
+BreakBeforeBraces: Allman
+
+# Four spaces, never tabs.
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+
+# The asterisk binds to the variable: int *p, not int* p.
+PointerAlignment: Right
+DerivePointerAlignment: false
+
+# Column alignment, so related lines read vertically.
+AlignConsecutiveMacros: AcrossEmptyLinesAndComments
+AlignConsecutiveAssignments: AcrossComments
+AlignConsecutiveDeclarations: AcrossComments
+AlignTrailingComments: true
+AlignEscapedNewlines: Left
+AlignOperands: Align
+
+# Never collapse a block onto one line.
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Spacing.
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+IndentCaseLabels: true
+ContinuationIndentWidth: 4
+
+# The include grouping and the section banners are maintained by hand, so
+# clang-format must leave both alone.
+SortIncludes: false
+ReflowComments: false
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
