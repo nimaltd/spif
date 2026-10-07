@@ -20,7 +20,7 @@ provides: []
 
 # What the project has to offer before this library works.
 requires:
-  installer: 1.8.0    # the first that offers options, here littlefs
+  installer: 1.9.0    # the first that reads installer.yml
   libraries:
     - nimaltd/osal >= 1.0.0   # the mutex and the waits, bare metal or RTOS
   hal: true           # HAL SPI, GPIO and the tick

@@ -110,7 +110,7 @@ Only the files the library needs are copied into your project, and the zip is le
 
 ### Updating, and pinning a version
 
-Run the same command again. The code is replaced. osal is updated only when spif needs a newer one. Your settings in `spif_config.h` and `osal_config.h`, between their `USER CODE` lines, are kept either way.
+Run the same command again. The code is replaced. osal is updated only when spif needs a newer one. Your settings in `spif_config.h` and `osal_config.h`, between their `USER CODE` lines, are kept either way. This needs stm32-installer 1.9.0 or newer. An older one cannot find the library: update it with `pip install --upgrade stm32-installer`.
 
 By default you get the newest code on `main`. To hold a project on one release, add `--ref` with a tag, a branch or a commit:
 

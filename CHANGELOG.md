@@ -103,12 +103,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and the port, `spif_lfs.h` and `spif_lfs.c`: `spif_lfs_init()` fills in the
   file system for the chip, a block a sector, with littlefs's caches in its
   handle so mounting needs no heap. With `LFS_THREADSAFE` it gives littlefs a
-  lock through osal. Needs stm32-installer 1.8.0 or newer.
+  lock through osal.
 - Host unit tests, run against a model of each kind of chip with
   `python test/run_tests.py`, once by polling and once by DMA, and for the
   LittleFS port, the real littlefs on a fake spif, without `LFS_THREADSAFE` and
   with it.
-- CMake build, and a `library.yml` for installing with stm32-installer, from
+- CMake build, and an `installer.yml` for installing with stm32-installer 1.9.0
+  or newer, from
   GitHub or from a downloaded zip.
 
 ### Removed
