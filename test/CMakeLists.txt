@@ -37,9 +37,34 @@ target_compile_features(spif_dma PUBLIC c_std_11)
 add_executable(test_spif_dma test_spif.c)
 target_link_libraries(test_spif_dma PRIVATE spif_dma unity)
 
+# HAL_MAX_DELAY for the sector and the chip erase times, which waits for ever
+# as it does in the HAL. Only the tests about that run in this build: every
+# other one expects the times spif_config.h ships, and a chip that never
+# finishes would never let it go. The rest as it ships, by polling.
+add_library(spif_forever STATIC ${PROJECT_SOURCE_DIR}/src/spif.c)
+target_include_directories(spif_forever PUBLIC
+    ${PROJECT_SOURCE_DIR}/src
+    ${SPIF_CONFIG_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/fake)
+target_compile_definitions(spif_forever PUBLIC
+    SPIF_CONFIG_H
+    SPIF_TRANSFER=SPIF_TRANSFER_POLLING
+    SPIF_TIMEOUT_MUTEX_MS=HAL_MAX_DELAY
+    SPIF_TIMEOUT_TRANSFER_MS=400U
+    SPIF_TIMEOUT_PAGE_MS=5U
+    SPIF_TIMEOUT_SECTOR_MS=HAL_MAX_DELAY
+    SPIF_TIMEOUT_BLOCK32_MS=2400U
+    SPIF_TIMEOUT_BLOCK_MS=3000U
+    SPIF_TIMEOUT_CHIP_PER_MB_MS=HAL_MAX_DELAY)
+target_compile_features(spif_forever PUBLIC c_std_11)
+
+add_executable(test_spif_forever test_spif.c)
+target_link_libraries(test_spif_forever PRIVATE spif_forever unity)
+
 # The stubs stand in for the CubeMX main.h and the HAL.
 target_include_directories(test_spif PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
 target_include_directories(test_spif_dma PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
+target_include_directories(test_spif_forever PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
 
 # The LittleFS port, src/spif_lfs.c, over a fake spif the test file provides,
 # with the real littlefs on top. littlefs is vendored in test/littlefs at
@@ -67,10 +92,12 @@ endforeach()
 target_compile_definitions(littlefs_lfs_threadsafe PUBLIC LFS_THREADSAFE)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    foreach(target spif spif_dma test_spif test_spif_dma test_spif_lfs test_spif_lfs_threadsafe)
+    foreach(target spif spif_dma spif_forever test_spif test_spif_dma test_spif_forever test_spif_lfs
+                   test_spif_lfs_threadsafe)
         target_compile_options(${target} PRIVATE ${SPIF_WARNINGS})
     endforeach()
 endif()
 
 add_test(NAME spif_polling COMMAND test_spif)
 add_test(NAME spif_dma COMMAND test_spif_dma)
+add_test(NAME spif_forever COMMAND test_spif_forever)

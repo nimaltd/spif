@@ -42,7 +42,8 @@
 /* How long each step may take, in milliseconds, before it ends with
    SPIF_ERR_TIMEOUT. Each is the longest time in a Winbond W25Q128JV's
    datasheet plus half again. Check your chip's datasheet and fit them to it:
-   a bigger or an older chip can take longer. */
+   a bigger or an older chip can take longer. HAL_MAX_DELAY in any of them
+   waits for ever. */
 
 /* Waiting for another thread to finish with the chip. HAL_MAX_DELAY waits as
    long as it takes, which is safe: whoever has the chip gives it back within

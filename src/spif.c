@@ -564,15 +564,18 @@ spif_err_t spif_erase_block(spif_t *handle, uint32_t block)
  */
 spif_err_t spif_erase_chip(spif_t *handle)
 {
-    /* The time allowed grows with the chip, a MB at a time, rounded up. */
-    uint32_t megabytes = 0U;
+    uint32_t wait = HAL_MAX_DELAY;
 
     assert_param(handle != NULL);
 
-    megabytes = (handle->size + 0xFFFFFU) >> 20U;
+#if SPIF_TIMEOUT_CHIP_PER_MB_MS != HAL_MAX_DELAY
+    /* The time allowed grows with the chip, a MB at a time, rounded up.
+       HAL_MAX_DELAY is left as it is, for ever: multiplied, it would wrap
+       round to a time, 0xFFFFFFF0 ms for a 16 MB chip. */
+    wait = ((handle->size + 0xFFFFFU) >> 20U) * SPIF_TIMEOUT_CHIP_PER_MB_MS;
+#endif
 
-    return spif_erase(handle, SPIF_CMD_ERASE_CHIP, 0U, 0U,
-                      megabytes * SPIF_TIMEOUT_CHIP_PER_MB_MS);
+    return spif_erase(handle, SPIF_CMD_ERASE_CHIP, 0U, 0U, wait);
 }
 
 /*****************************************************************************************************/
@@ -1753,7 +1756,13 @@ static uint32_t spif_remaining(uint32_t start, uint32_t timeout_ms)
     uint32_t elapsed = HAL_GetTick() - start;
     uint32_t left    = 0U;
 
-    if (elapsed < timeout_ms)
+    if (timeout_ms == HAL_MAX_DELAY)
+    {
+        /* HAL_MAX_DELAY waits for ever, as it does in the HAL. Counted down,
+           it would run out after 49.7 days like any other time. */
+        left = HAL_MAX_DELAY;
+    }
+    else if (elapsed < timeout_ms)
     {
         left = timeout_ms - elapsed;
     }

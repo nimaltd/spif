@@ -167,7 +167,7 @@ Commands and status reads always go by polling: a few bytes take less time than 
 
 ### Timeouts
 
-Each step has its own time, in milliseconds, after which it ends with `SPIF_ERR_TIMEOUT`. The values shipped are the longest times in a Winbond W25Q128JV's datasheet, plus half again:
+Each step has its own time, in milliseconds, after which it ends with `SPIF_ERR_TIMEOUT`. `HAL_MAX_DELAY` in any of them waits for ever, as it does in the HAL. The values shipped are the longest times in a Winbond W25Q128JV's datasheet, plus half again:
 
 | Setting | For | Shipped |
 |---|---|---|

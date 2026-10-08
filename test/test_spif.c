@@ -28,7 +28,9 @@
  *              Built twice, once for each SPIF_TRANSFER setting. Every read,
  *              write and erase is finished with spif_wait(), as a user would,
  *              so most tests run unchanged in both. A test that only means
- *              something with DMA is left out of the polling build.
+ *              something with DMA is left out of the polling build. A third
+ *              build sets the sector and chip erase times to HAL_MAX_DELAY,
+ *              and runs only the tests that it waits for ever.
  */
 
 /*
@@ -94,6 +96,9 @@
 
 /* Whether this build moves read and write data by DMA. */
 #define USES_DMA            (SPIF_TRANSFER == SPIF_TRANSFER_DMA)
+
+/* Whether this build waits for ever for an erase, as HAL_MAX_DELAY says. */
+#define WAITS_FOR_EVER      (SPIF_TIMEOUT_SECTOR_MS == HAL_MAX_DELAY)
 
 /* Public calls that take a pointer, each tried with a NULL. */
 #define NULL_CALLS          15
@@ -200,6 +205,10 @@ static GPIO_TypeDef      test_cs_port;
 
 static uint32_t          now_us = 0U;
 
+/* Added to the tick, so a test can move it on by days at once. now_us alone
+   only reaches 71 minutes. */
+static uint32_t          tick_jump_ms = 0U;
+
 static uint8_t           pattern[PATTERN_BYTES];
 static uint8_t           readback[PATTERN_BYTES];
 
@@ -300,7 +309,7 @@ void assert_failed(uint8_t *file, uint32_t line)
  */
 uint32_t HAL_GetTick(void)
 {
-    return now_us / 1000U;
+    return (now_us / 1000U) + tick_jump_ms;
 }
 
 /*****************************************************************************************************/
@@ -620,6 +629,7 @@ void osal_delay_ms(uint32_t ms)
 void setUp(void)
 {
     now_us             = 0U;
+    tick_jump_ms       = 0U;
     lock_result        = OSAL_ERR_NONE;
     mutex_create_fails = false;
     mutex_created_at   = NULL;
@@ -1813,6 +1823,59 @@ void test_a_chip_that_never_finishes_times_out(void)
     memset(chip.busy_until_us, 0, sizeof(chip.busy_until_us));
 }
 
+#if WAITS_FOR_EVER
+/*****************************************************************************************************/
+/**
+ * @brief HAL_MAX_DELAY waits for ever: an erase still running 49.7 days on is not timed out.
+ *
+ * Counted down like any other time, HAL_MAX_DELAY runs out when 0xFFFFFFFF ms
+ * have gone by. The clock is moved to just before that, and on past it.
+ */
+void test_hal_max_delay_outlasts_the_tick(void)
+{
+    uint32_t i = 0U;
+
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, init_chip(SPIF_MANUFACTURER_WINBOND, CHIP_16MB));
+
+    chip.never_ready = true;
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_erase_sector(&flash, 0U));
+
+    /* On to the start of a millisecond, so the few microseconds each status
+       read takes never carry the tick past the one being checked. */
+    now_us       += 1000U - (now_us % 1000U);
+    tick_jump_ms += (HAL_MAX_DELAY - 2U) - (HAL_GetTick() - flash.job_start);
+
+    for (i = 0U; i < 5U; i++)
+    {
+        TEST_ASSERT_EQUAL_HEX32(HAL_MAX_DELAY - 2U + i, HAL_GetTick() - flash.job_start);
+        TEST_ASSERT_TRUE_MESSAGE(spif_is_busy(&flash),
+                                 "timed out, where HAL_MAX_DELAY waits for ever");
+        osal_delay_ms(1U);
+    }
+
+    /* The chip finishes at last, and the erase ends well. */
+    chip.never_ready = false;
+    memset(chip.busy_until_us, 0, sizeof(chip.busy_until_us));
+
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief HAL_MAX_DELAY for each MB of a chip erase is not multiplied into a time.
+ *
+ * 16 times 0xFFFFFFFF wraps round to 0xFFFFFFF0, which is a time: 49.7 days.
+ */
+void test_hal_max_delay_per_mb_is_not_multiplied(void)
+{
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, init_chip(SPIF_MANUFACTURER_WINBOND, CHIP_16MB));
+
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_erase_chip(&flash));
+    TEST_ASSERT_EQUAL_HEX32(HAL_MAX_DELAY, flash.job_timeout);
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
+}
+#endif /* WAITS_FOR_EVER */
+
 /*****************************************************************************************************/
 /**
  * @brief The HAL is given the transfer time spif_config.h sets.
@@ -2567,6 +2630,13 @@ int main(void)
 {
     UNITY_BEGIN();
 
+#if WAITS_FOR_EVER
+    /* Only what HAL_MAX_DELAY changes. Every other test expects the erase
+       times spif_config.h ships, and a chip that never finishes would never
+       let one go. */
+    RUN_TEST(test_hal_max_delay_outlasts_the_tick);
+    RUN_TEST(test_hal_max_delay_per_mb_is_not_multiplied);
+#else
     RUN_TEST(test_init_reads_the_size_from_the_chip);
     RUN_TEST(test_other_size_codes_are_read);
     RUN_TEST(test_a_chip_not_known_is_refused);
@@ -2651,6 +2721,7 @@ int main(void)
     RUN_TEST(test_a_mutex_held_elsewhere_times_out);
     RUN_TEST(test_a_refused_mutex_is_reported);
     RUN_TEST(test_the_mutex_wait_is_the_configured_one);
+#endif
 
     return UNITY_END();
 }

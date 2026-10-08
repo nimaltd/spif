@@ -40,6 +40,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   transfer, a page, a sector, a 32 KB and a 64 KB block, the whole chip for
   each MB, and the wait for the mutex. The values shipped are a W25Q128JV's
   longest times plus half again. The fixed 100 ms and 2 s of version 2 are gone.
+  `HAL_MAX_DELAY` in any of them waits for ever, as it does in the HAL.
 - **Writes and erases return at once**, as jobs, and the chip goes on by
   itself. The new `spif_is_busy()` checks once whether the job is done and
   moves it on, sending the next page of a write or the next piece of an erase,
