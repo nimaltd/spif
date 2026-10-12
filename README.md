@@ -399,7 +399,7 @@ A Micron or a Spansion FL-S reports a refused write or erase, and spif returns `
 
 ### With an RTOS
 
-Set `OSAL_RTOS` in your `osal_config.h` and each chip gets its own mutex, created by `spif_init()`. Two threads can then use one chip safely: the second waits for the first. While a write or an erase waits for the chip, the thread sleeps and your other threads run.
+Set `OSAL_RTOS` in your `osal_config.h` and each chip gets its own mutex, created by `spif_init()`. A call that finds another thread using the chip waits for it, up to `SPIF_TIMEOUT_MUTEX_MS`. While a write or an erase waits for the chip, `spif_wait()` sleeps and your other threads run.
 
 Start the RTOS first. With one set, call every spif function from a thread, `spif_init()` included, and never from `main()` before the kernel starts: the mutex and the sleeps need a running RTOS.
 
@@ -416,7 +416,7 @@ void StartDefaultTask(void *argument)
 }
 ```
 
-A job holds the mutex from the call that starts it until `spif_is_busy()` or `spif_wait()` sees it end, so call those from the thread that started it. `spif_wait()` sleeps between its questions; a loop of your own around `spif_is_busy()` should too, `osDelay(1)` for one, rather than spin.
+A job holds the mutex from the call that starts it until `spif_is_busy()` or `spif_wait()` sees it end, so call those from the thread that started it. A call from another thread while a job runs gets `SPIF_ERR_BUSY` at once, rather than waiting, so that thread can try again later. `spif_wait()` sleeps between its questions; a loop of your own around `spif_is_busy()` should too, `osDelay(1)` for one, rather than spin.
 
 The mutex is per chip, not per bus. Two devices on one SPI bus used from two threads at once would collide. Usually the HAL refuses the second transfer, which comes back as `SPIF_ERR_SPI`, but that is luck rather than safety. Use both from one thread, or guard the bus with a mutex of your own.
 
