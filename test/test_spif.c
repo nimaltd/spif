@@ -1413,10 +1413,11 @@ void test_a_read_returns_what_the_chip_holds(void)
 
 /*****************************************************************************************************/
 /**
- * @brief A read over 64 KB goes in pieces the HAL can count, all in one transaction.
+ * @brief A read over 64 KB goes in pieces the HAL can count, with DMA all in one transaction.
  *
  * 2.3.2 handed the HAL the whole length, which it counts in 16 bits. Exactly
- * 64 KB is the worst case: counted in 16 bits it is 0.
+ * 64 KB is the worst case: counted in 16 bits it is 0. By polling each piece
+ * of SPIF_POLL_CHUNK bytes is a read command of its own.
  */
 void test_a_read_over_64kb_goes_in_pieces(void)
 {
@@ -1435,7 +1436,10 @@ void test_a_read_over_64kb_goes_in_pieces(void)
 
         TEST_ASSERT_EQUAL_MEMORY(pattern, readback, lengths[i]);
         TEST_ASSERT_TRUE_MESSAGE(chip.largest_transfer <= 0xFFFFU, "more than the HAL can count");
-        TEST_ASSERT_EQUAL_INT_MESSAGE(1, chip.selects, "the read was split into several commands");
+        TEST_ASSERT_EQUAL_INT_MESSAGE(USES_DMA ? 1
+                                               : (int)((lengths[i] + SPIF_POLL_CHUNK - 1U) /
+                                                       SPIF_POLL_CHUNK),
+                                      chip.selects, "the read was split into the wrong commands");
     }
 }
 
@@ -2417,6 +2421,51 @@ void test_a_dma_error_is_reported(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_SPI, write_all(0U, pattern, 64U));
 }
 
+#else
+
+/*****************************************************************************************************/
+/**
+ * @brief By polling a read goes a piece per call, none bigger than SPIF_POLL_CHUNK.
+ */
+void test_a_polling_read_goes_a_piece_at_a_time(void)
+{
+    int pieces = (int)((10000U + SPIF_POLL_CHUNK - 1U) / SPIF_POLL_CHUNK);
+
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, init_chip(SPIF_MANUFACTURER_WINBOND, CHIP_16MB));
+    memcpy(&chip_mem[7U], pattern, 10000U);
+    chip.selects = 0;
+
+    /* The first piece is in before the call returns, and the chip let go. */
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_read(&flash, 7U, readback, 10000U));
+    TEST_ASSERT_EQUAL_INT(1, chip.selects);
+    TEST_ASSERT_FALSE_MESSAGE(chip.cs_low, "kept the chip selected between pieces");
+    TEST_ASSERT_EQUAL_INT_MESSAGE((pieces > 1) ? 1 : 0, mutex_held,
+                                  "the mutex does not follow the read");
+
+    /* The caller's state machine does other work between its questions. */
+    while (spif_is_busy(&flash))
+    {
+        now_us += 100U;
+    }
+
+    TEST_ASSERT_EQUAL_INT(pieces, chip.selects);
+    TEST_ASSERT_TRUE_MESSAGE(chip.largest_transfer <= SPIF_POLL_CHUNK, "a piece was too big");
+    TEST_ASSERT_EQUAL_MEMORY(pattern, readback, 10000U);
+    TEST_ASSERT_EQUAL_INT(0, mutex_held);
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
+
+    /* spif_wait() reads one piece after the other, with no sleep between. */
+    memset(readback, 0, 10000U);
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, read_all(7U, readback, 10000U));
+    TEST_ASSERT_EQUAL_MEMORY(pattern, readback, 10000U);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps, "slept between the pieces of a read");
+
+    /* A read that fits in one piece is done when the call returns. */
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_read(&flash, 0U, readback, 16U));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, mutex_held, "kept the mutex after a read in one piece");
+    TEST_ASSERT_FALSE(spif_is_busy(&flash));
+}
+
 #endif /* USES_DMA */
 
 /*
@@ -2710,6 +2759,8 @@ int main(void)
     RUN_TEST(test_a_dma_write_goes_a_page_at_a_time);
     RUN_TEST(test_a_stuck_dma_is_stopped_at_its_time);
     RUN_TEST(test_a_dma_error_is_reported);
+#else
+    RUN_TEST(test_a_polling_read_goes_a_piece_at_a_time);
 #endif
 
     RUN_TEST(test_the_unique_id_is_read);

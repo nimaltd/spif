@@ -46,7 +46,7 @@ jobs:
         run: |
           flags="-mcpu=cortex-m4 -mthumb -std=c11 -Wall -Wextra -Wpedantic -Werror -Wundef -Os"
           include="-Itest/stub -Iosal/src -Iosal/test/stub"
-          timeouts="-DSPIF_TIMEOUT_MUTEX_MS=HAL_MAX_DELAY -DSPIF_TIMEOUT_TRANSFER_MS=400U \
+          timeouts="-DSPIF_POLL_CHUNK=4096U -DSPIF_TIMEOUT_MUTEX_MS=HAL_MAX_DELAY -DSPIF_TIMEOUT_TRANSFER_MS=400U \
             -DSPIF_TIMEOUT_PAGE_MS=5U -DSPIF_TIMEOUT_SECTOR_MS=600U -DSPIF_TIMEOUT_BLOCK32_MS=2400U \
             -DSPIF_TIMEOUT_BLOCK_MS=3000U -DSPIF_TIMEOUT_CHIP_PER_MB_MS=18750U"
           arm-none-eabi-gcc -c src/spif.c -o /tmp/spif.o $include $flags

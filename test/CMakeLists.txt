@@ -25,6 +25,7 @@ target_include_directories(spif_dma PUBLIC
 target_compile_definitions(spif_dma PUBLIC
     SPIF_CONFIG_H
     SPIF_TRANSFER=SPIF_TRANSFER_DMA
+    SPIF_POLL_CHUNK=4096U
     SPIF_TIMEOUT_MUTEX_MS=HAL_MAX_DELAY
     SPIF_TIMEOUT_TRANSFER_MS=400U
     SPIF_TIMEOUT_PAGE_MS=5U
@@ -49,6 +50,7 @@ target_include_directories(spif_forever PUBLIC
 target_compile_definitions(spif_forever PUBLIC
     SPIF_CONFIG_H
     SPIF_TRANSFER=SPIF_TRANSFER_POLLING
+    SPIF_POLL_CHUNK=4096U
     SPIF_TIMEOUT_MUTEX_MS=HAL_MAX_DELAY
     SPIF_TIMEOUT_TRANSFER_MS=400U
     SPIF_TIMEOUT_PAGE_MS=5U

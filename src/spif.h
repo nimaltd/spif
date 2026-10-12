@@ -54,6 +54,15 @@
 #error "SPIF_TRANSFER must be SPIF_TRANSFER_POLLING or SPIF_TRANSFER_DMA"
 #endif
 
+/* Added after the first version, so a configuration file from before has none
+   and gets the default. A piece is at most one HAL transfer, which counts in
+   16 bits. */
+#ifndef SPIF_POLL_CHUNK
+#define SPIF_POLL_CHUNK                 4096U
+#elif (SPIF_POLL_CHUNK < 1) || (SPIF_POLL_CHUNK > 32768)
+#error "SPIF_POLL_CHUNK must be from 1 to 32768"
+#endif
+
 /* 0 is allowed here: it tries for the mutex once and does not wait. */
 #ifndef SPIF_TIMEOUT_MUTEX_MS
 #error "SPIF_TIMEOUT_MUTEX_MS is not defined. Add it to spif_config.h"
@@ -224,7 +233,7 @@ spif_err_t spif_init(spif_t *handle, SPI_HandleTypeDef *hspi, GPIO_TypeDef *cs_p
 
 /*****************************************************************************************************/
 /**
- * @brief Read len bytes starting at address. With DMA it is a job: it returns once started.
+ * @brief Start reading len bytes at address, as a job.
  */
 spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len);
 
