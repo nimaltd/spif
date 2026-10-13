@@ -179,7 +179,7 @@ typedef enum
     SPIF_ERR_MUTEX     = 5, /**< The RTOS could not create or take the mutex.                */
     SPIF_ERR_CHIP      = 6, /**< No chip answered, or one this driver does not know.         */
     SPIF_ERR_PROTECTED = 7, /**< Write protected: the chip will not change some or all of it. */
-    SPIF_ERR_BUSY      = 8, /**< A job is still running: see spif_is_busy().                */
+    SPIF_ERR_BUSY      = 8, /**< A job is still running: see spif_is_running().             */
 
 } spif_err_t;
 
@@ -277,7 +277,7 @@ spif_err_t spif_unique_id(spif_t *handle, uint8_t *id);
 /**
  * @brief Whether a job is still running. Moves it on, and returns at once.
  */
-bool spif_is_busy(spif_t *handle);
+bool spif_is_running(spif_t *handle);
 
 /*****************************************************************************************************/
 /**

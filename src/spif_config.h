@@ -31,7 +31,7 @@
 /* USER CODE BEGIN SPIF_CONFIGURATION */
 
 /* How spif_read() and spif_write() move their data. Either way each is a job:
-   it returns once started, and spif_is_busy() or spif_wait() says when it has
+   it returns once started, and spif_is_running() or spif_wait() says when it has
    finished. One of:
      SPIF_TRANSFER_POLLING  the CPU moves it, a piece per call
      SPIF_TRANSFER_DMA      the DMA moves it, and the CPU is free meanwhile
@@ -40,7 +40,7 @@
 #define SPIF_TRANSFER                   SPIF_TRANSFER_POLLING
 
 /* By polling, the most one call reads, in bytes, from 1 to 32768. A read is a
-   job: spif_read() reads the first piece and each spif_is_busy() the next, so
+   job: spif_read() reads the first piece and each spif_is_running() the next, so
    no call keeps your code longer than one piece takes. 4 KB take 1.6 ms at
    21 MHz. Bigger is a little faster in all, since each piece sends its read
    command again, 5 or 6 bytes. Not used with DMA. */

@@ -1485,7 +1485,7 @@ void test_zero_bytes_does_nothing(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_write(&flash, 0U, pattern, 0U));
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_read(&flash, flash.size, readback, 0U));
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_write(&flash, flash.size, pattern, 0U));
-    TEST_ASSERT_FALSE_MESSAGE(spif_is_busy(&flash), "nothing should be running");
+    TEST_ASSERT_FALSE_MESSAGE(spif_is_running(&flash), "nothing should be running");
     TEST_ASSERT_EQUAL_INT(0, chip.transfers);
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, mutex_takes, "nothing to do still took the mutex");
 }
@@ -1852,7 +1852,7 @@ void test_hal_max_delay_outlasts_the_tick(void)
     for (i = 0U; i < 5U; i++)
     {
         TEST_ASSERT_EQUAL_HEX32(HAL_MAX_DELAY - 2U + i, HAL_GetTick() - flash.job_start);
-        TEST_ASSERT_TRUE_MESSAGE(spif_is_busy(&flash),
+        TEST_ASSERT_TRUE_MESSAGE(spif_is_running(&flash),
                                  "timed out, where HAL_MAX_DELAY waits for ever");
         osal_delay_ms(1U);
     }
@@ -1900,13 +1900,13 @@ void test_the_hal_gets_the_transfer_time(void)
 
 /*****************************************************************************************************/
 /**
- * @brief With nothing running, spif_is_busy() says no, and spif_wait() returns at once.
+ * @brief With nothing running, spif_is_running() says no, and spif_wait() returns at once.
  */
-void test_nothing_running_is_not_busy(void)
+void test_nothing_started_is_not_running(void)
 {
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, init_chip(SPIF_MANUFACTURER_WINBOND, CHIP_16MB));
 
-    TEST_ASSERT_FALSE(spif_is_busy(&flash));
+    TEST_ASSERT_FALSE(spif_is_running(&flash));
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
     TEST_ASSERT_EQUAL_INT(0, sleeps);
     TEST_ASSERT_EQUAL_INT(0, chip.transfers);
@@ -1914,7 +1914,7 @@ void test_nothing_running_is_not_busy(void)
 
 /*****************************************************************************************************/
 /**
- * @brief An erase returns at once, and spif_is_busy() follows it while the caller does other work.
+ * @brief An erase returns at once, and spif_is_running() follows it while the caller works.
  */
 void test_an_erase_returns_at_once(void)
 {
@@ -1927,24 +1927,25 @@ void test_an_erase_returns_at_once(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_erase_chip(&flash));
     TEST_ASSERT_TRUE_MESSAGE((now_us - start) < 1000U, "the call waited for the erase");
     TEST_ASSERT_EQUAL_INT(0, sleeps);
-    TEST_ASSERT_TRUE(spif_is_busy(&flash));
+    TEST_ASSERT_TRUE(spif_is_running(&flash));
     TEST_ASSERT_EQUAL_INT_MESSAGE(1, mutex_held, "gave the mutex back while erasing");
 
     /* The caller's state machine does something else for a while. */
     now_us += CHIP_US / 2U;
-    TEST_ASSERT_TRUE(spif_is_busy(&flash));
+    TEST_ASSERT_TRUE(spif_is_running(&flash));
     now_us += CHIP_US;
-    TEST_ASSERT_FALSE(spif_is_busy(&flash));
+    TEST_ASSERT_FALSE(spif_is_running(&flash));
     TEST_ASSERT_EQUAL_HEX8(0xFFU, chip_mem[0]);
 
     /* Ended: spif_wait() says how, at once. */
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
-    TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps, "spif_is_busy() or spif_wait() slept on an ended job");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps,
+                                  "spif_is_running() or spif_wait() slept on an ended job");
 }
 
 /*****************************************************************************************************/
 /**
- * @brief A write returns once its first page is out, and spif_is_busy() sends the others.
+ * @brief A write returns once its first page is out, and spif_is_running() sends the others.
  */
 void test_a_write_returns_after_its_first_page(void)
 {
@@ -1953,10 +1954,10 @@ void test_a_write_returns_after_its_first_page(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_write(&flash, 0U, pattern, 768U));
 
     /* By polling the first page is being stored. With DMA it is still on
-       its way, and stored once spif_is_busy() lets the chip go. */
+       its way, and stored once spif_is_running() lets the chip go. */
     TEST_ASSERT_EQUAL_INT(USES_DMA ? 0 : 1, chip.programs);
 
-    while (spif_is_busy(&flash))
+    while (spif_is_running(&flash))
     {
         now_us += 100U;
     }
@@ -1964,7 +1965,7 @@ void test_a_write_returns_after_its_first_page(void)
     TEST_ASSERT_EQUAL_INT(3, chip.programs);
     TEST_ASSERT_EQUAL_MEMORY(pattern, chip_mem, 768U);
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
-    TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps, "spif_is_busy() slept");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps, "spif_is_running() slept");
 }
 
 /*****************************************************************************************************/
@@ -2024,7 +2025,7 @@ void test_wait_reports_a_refused_call(void)
  * @brief Every command, on every kind of chip, behaves as a job should.
  *
  * Each write and erase, and with DMA each read, returns at once without
- * sleeping. spif_is_busy() then says true, holds the chip for the job, and
+ * sleeping. spif_is_running() then says true, holds the chip for the job, and
  * refuses other calls, until the chip has done it. Then it says false,
  * spif_wait() returns the result at once, and the chip holds what it should.
  * A read by polling is done when it returns.
@@ -2176,7 +2177,7 @@ void test_every_command_on_every_chip(void)
             {
                 /* A job: back at once, running, holding the chip, refusing others. */
                 TEST_ASSERT_TRUE_MESSAGE((now_us - start) < 1000U, "the call waited for its job");
-                TEST_ASSERT_TRUE_MESSAGE(spif_is_busy(&flash), chips[i].name);
+                TEST_ASSERT_TRUE_MESSAGE(spif_is_running(&flash), chips[i].name);
                 TEST_ASSERT_EQUAL_INT(1, mutex_held);
 
                 transfers = chip.transfers;
@@ -2189,7 +2190,7 @@ void test_every_command_on_every_chip(void)
                 /* The caller does other work, asking now and then. */
                 rounds = 0;
 
-                while (spif_is_busy(&flash) && (rounds < 100000000L))
+                while (spif_is_running(&flash) && (rounds < 100000000L))
                 {
                     now_us += 500U;
                     rounds++;
@@ -2198,9 +2199,9 @@ void test_every_command_on_every_chip(void)
                 TEST_ASSERT_FALSE_MESSAGE(chip_busy(), chips[i].name);
             }
 
-            TEST_ASSERT_FALSE(spif_is_busy(&flash));
+            TEST_ASSERT_FALSE(spif_is_running(&flash));
             TEST_ASSERT_EQUAL_INT_MESSAGE(SPIF_ERR_NONE, spif_wait(&flash), chips[i].name);
-            TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps, "spif_is_busy() or spif_wait() slept");
+            TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps, "spif_is_running() or spif_wait() slept");
             TEST_ASSERT_EQUAL_INT(0, mutex_held);
             TEST_ASSERT_FALSE(chip.cs_low);
 
@@ -2234,7 +2235,7 @@ void test_every_command_on_every_chip(void)
  * @brief A state machine runs every command, one after another, and never waits.
  *
  * As a user's main loop would: start a job, go on with other work, and ask
- * spif_is_busy() each time round. Only once it says false does spif_wait()
+ * spif_is_running() each time round. Only once it says false does spif_wait()
  * fetch the result, which it then returns at once.
  */
 void test_a_state_machine_runs_every_command(void)
@@ -2260,7 +2261,7 @@ void test_a_state_machine_runs_every_command(void)
         /* The rest of the main loop. */
         now_us += 200U;
 
-        if (running && spif_is_busy(&flash))
+        if (running && spif_is_running(&flash))
         {
             other++;
         }
@@ -2338,7 +2339,7 @@ void test_a_state_machine_runs_every_command(void)
 
 /*****************************************************************************************************/
 /**
- * @brief A DMA read returns once it has started, and spif_is_busy() says when it is done.
+ * @brief A DMA read returns once it has started, and spif_is_running() says when it is done.
  */
 void test_a_dma_read_returns_at_once(void)
 {
@@ -2348,11 +2349,11 @@ void test_a_dma_read_returns_at_once(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_read(&flash, 7U, readback, 4096U));
     TEST_ASSERT_TRUE_MESSAGE(chip.cs_low, "let the chip go while the read was running");
     TEST_ASSERT_EQUAL_INT_MESSAGE(1, mutex_held, "gave the mutex back while the read was running");
-    TEST_ASSERT_TRUE(spif_is_busy(&flash));
+    TEST_ASSERT_TRUE(spif_is_running(&flash));
 
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
     TEST_ASSERT_EQUAL_MEMORY(pattern, readback, 4096U);
-    TEST_ASSERT_FALSE(spif_is_busy(&flash));
+    TEST_ASSERT_FALSE(spif_is_running(&flash));
 }
 
 /*****************************************************************************************************/
@@ -2368,9 +2369,9 @@ void test_a_dma_write_goes_a_page_at_a_time(void)
 
     /* The first page out, then being stored. */
     now_us += 200U;
-    TEST_ASSERT_TRUE(spif_is_busy(&flash));
+    TEST_ASSERT_TRUE(spif_is_running(&flash));
     TEST_ASSERT_FALSE_MESSAGE(chip.cs_low, "kept the chip selected while it stored the page");
-    TEST_ASSERT_TRUE(spif_is_busy(&flash));
+    TEST_ASSERT_TRUE(spif_is_running(&flash));
     TEST_ASSERT_EQUAL_INT_MESSAGE(1, chip.dma_transfers, "sent a page before the last was stored");
 
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
@@ -2443,7 +2444,7 @@ void test_a_polling_read_goes_a_piece_at_a_time(void)
                                   "the mutex does not follow the read");
 
     /* The caller's state machine does other work between its questions. */
-    while (spif_is_busy(&flash))
+    while (spif_is_running(&flash))
     {
         now_us += 100U;
     }
@@ -2463,7 +2464,7 @@ void test_a_polling_read_goes_a_piece_at_a_time(void)
     /* A read that fits in one piece is done when the call returns. */
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_read(&flash, 0U, readback, 16U));
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, mutex_held, "kept the mutex after a read in one piece");
-    TEST_ASSERT_FALSE(spif_is_busy(&flash));
+    TEST_ASSERT_FALSE(spif_is_running(&flash));
 }
 
 #endif /* USES_DMA */
@@ -2747,7 +2748,7 @@ int main(void)
     RUN_TEST(test_a_chip_that_never_finishes_times_out);
     RUN_TEST(test_the_hal_gets_the_transfer_time);
 
-    RUN_TEST(test_nothing_running_is_not_busy);
+    RUN_TEST(test_nothing_started_is_not_running);
     RUN_TEST(test_an_erase_returns_at_once);
     RUN_TEST(test_a_write_returns_after_its_first_page);
     RUN_TEST(test_a_call_while_a_job_runs_is_refused);
@@ -3823,7 +3824,7 @@ static bool assert_stops(int which)
                 break;
 
             case 13:
-                (void)spif_is_busy(NULL);
+                (void)spif_is_running(NULL);
                 break;
 
             default:

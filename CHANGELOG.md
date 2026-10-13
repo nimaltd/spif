@@ -42,7 +42,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   longest times plus half again. The fixed 100 ms and 2 s of version 2 are gone.
   `HAL_MAX_DELAY` in any of them waits for ever, as it does in the HAL.
 - **Reads, writes and erases return at once**, as jobs, and go on while the
-  caller does something else. The new `spif_is_busy()` moves the job on, a
+  caller does something else. The new `spif_is_running()` moves the job on, a
   piece of a read, the next page of a write or the next piece of an erase, and
   says whether it is done, for a state machine. The new `spif_wait()` waits for
   the job to end, sleeping through osal while the chip works, and returns how
@@ -92,7 +92,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Write protection found by `spif_init()`, which returns the new
   `SPIF_ERR_PROTECTED` with the handle still working. Micron and Spansion
   report a refused write or erase, and spif returns it then too.
-- `spif_is_busy()`, `spif_wait()` and `SPIF_ERR_BUSY`, for jobs.
+- `spif_is_running()`, `spif_wait()` and `SPIF_ERR_BUSY`, for jobs.
 - A real mutex per chip with an RTOS: CMSIS-RTOS v1 and v2 for FreeRTOS, and
   ThreadX, through osal.
 - Error values that say what went wrong: `SPIF_ERR_INVALID`, `SPIF_ERR_RANGE`,
