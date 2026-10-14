@@ -29,7 +29,8 @@
  * ****************************************************************************************************
 */
 
-/* How often spif_wait() asks whether a job has finished. */
+/* How long to sleep between questions to the chip: at init in every build,
+   and in spif_wait() only with an RTOS. */
 #define SPIF_POLL_MS                1U
 
 /* A chip takes no command for a while after power up: datasheets give up to
@@ -308,8 +309,8 @@ spif_err_t spif_init(spif_t *handle, SPI_HandleTypeDef *hspi, GPIO_TypeDef *cs_p
  * @brief Start reading len bytes starting at address. Not from an interrupt.
  *
  * A job: by polling it reads the first piece, up to SPIF_POLL_CHUNK bytes, and
- * spif_is_running() reads each of the others, so no call keeps the caller long.
- * With DMA it returns once the read has started. spif_is_running() or spif_wait()
+ * spif_process() reads each of the others, so no call keeps the caller long.
+ * With DMA it returns once the read has started. spif_process() or spif_wait()
  * says when the last is in. Until then the buffer must stay where it is.
  *
  * @param[in,out] handle   Handle from spif_init().
@@ -336,7 +337,7 @@ spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len
             break;
         }
 
-        /* One job at a time. spif_is_running() says when the last has ended. */
+        /* One job at a time. spif_process() says when the last has ended. */
         if (handle->job_state != SPIF_JOB_IDLE)
         {
             err = SPIF_ERR_BUSY;
@@ -381,7 +382,7 @@ spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len
         /* A fast read, which every chip takes at any clock, where the plain
            read stops at 50 MHz on some. After the address and one dummy byte
            the chip sends from there on, to the end of the chip. The DMA brings
-           the data in, and the chip stays selected until spif_is_running() sees
+           the data in, and the chip stays selected until spif_process() sees
            the last of it arrive. */
         spif_select(handle, true);
         err = spif_command(handle, handle->cmd_read, address, handle->address_bytes, 1U);
@@ -420,8 +421,8 @@ spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len
 /**
  * @brief Start writing len bytes at address, into flash erased beforehand. Not from an interrupt.
  *
- * A job: it returns once the first page has started, and spif_is_running() sends
- * each of the others once the chip has stored the one before. spif_is_running()
+ * A job: it returns once the first page has started, and spif_process() sends
+ * each of the others once the chip has stored the one before. spif_process()
  * or spif_wait() says when the last is stored. Until then the buffer must stay
  * as it is.
  *
@@ -450,7 +451,7 @@ spif_err_t spif_write(spif_t *handle, uint32_t address, const uint8_t *data, siz
             break;
         }
 
-        /* One job at a time. spif_is_running() says when the last has ended. */
+        /* One job at a time. spif_process() says when the last has ended. */
         if (handle->job_state != SPIF_JOB_IDLE)
         {
             err = SPIF_ERR_BUSY;
@@ -513,7 +514,7 @@ spif_err_t spif_write(spif_t *handle, uint32_t address, const uint8_t *data, siz
 /**
  * @brief Start erasing one sector, the smallest part the chip erases, by its number.
  *
- * A job: it returns at once, and spif_is_running() or spif_wait() says when it
+ * A job: it returns at once, and spif_process() or spif_wait() says when it
  * has finished. Not from an interrupt.
  *
  * @param[in,out] handle  Handle from spif_init().
@@ -621,7 +622,7 @@ spif_err_t spif_unique_id(spif_t *handle, uint8_t *id)
             break;
         }
 
-        /* One job at a time. spif_is_running() says when the last has ended. */
+        /* One job at a time. spif_process() says when the last has ended. */
         if (handle->job_state != SPIF_JOB_IDLE)
         {
             err = SPIF_ERR_BUSY;
@@ -665,7 +666,7 @@ spif_err_t spif_unique_id(spif_t *handle, uint8_t *id)
 
 /*****************************************************************************************************/
 /**
- * @brief Whether a job is still running. Moves it on, and returns at once. Not from an interrupt.
+ * @brief Move the running job one step, and say whether it still runs. Not from an interrupt.
  *
  * A job is a read, a write or an erase. Each call moves it one step: it reads
  * the next piece by polling, or asks the chip, or the HAL with DMA, whether
@@ -677,7 +678,7 @@ spif_err_t spif_unique_id(spif_t *handle, uint8_t *id)
  * @param[in,out] handle  Handle from spif_init().
  * @return true while the job runs, false once it has ended or when none runs.
  */
-bool spif_is_running(spif_t *handle)
+bool spif_process(spif_t *handle)
 {
     spif_err_t err = SPIF_ERR_NONE;
 
@@ -721,11 +722,11 @@ bool spif_is_running(spif_t *handle)
 /**
  * @brief Wait until the running job has ended, and say how it ended. Not from an interrupt.
  *
- * Asks first, so after spif_is_running() has returned false, or after a call that
- * finished or was refused at once, it returns straight away. While the chip or
- * the DMA has the job it sleeps a millisecond through osal between questions,
- * so with an RTOS other threads run. Call it from the thread that started the
- * job.
+ * Asks first, so after spif_process() has returned false, or after a call that
+ * finished or was refused at once, it returns straight away. With an RTOS it
+ * sleeps a millisecond through osal between steps while the chip or the DMA
+ * has the job, so other threads run. Without one it takes the next step at
+ * once. Call it from the thread that started the job.
  *
  * @param[in,out] handle  Handle from spif_init().
  * @return How the last read, write or erase ended: SPIF_ERR_NONE when it worked.
@@ -734,15 +735,21 @@ spif_err_t spif_wait(spif_t *handle)
 {
     assert_param(handle != NULL);
 
-    while (spif_is_running(handle))
+    while (spif_process(handle))
     {
 #if (SPIF_TRANSFER == SPIF_TRANSFER_POLLING)
-        /* A read by polling moves a piece with every question and waits for
+        /* A read by polling moves a piece with every step and waits for
            nothing, so a sleep between would only slow it down. */
         if (handle->job_state != SPIF_JOB_READ)
 #endif
         {
+            /* With an RTOS, a millisecond for the other threads while the chip
+               or the DMA has the job. Without one nothing else could run
+               meanwhile, so the next step comes at once and the job ends as
+               soon as it can. */
+#if (OSAL_RTOS != OSAL_RTOS_NONE)
             osal_delay_ms(SPIF_POLL_MS);
+#endif
         }
     }
 
@@ -784,7 +791,7 @@ static spif_err_t spif_erase(spif_t *handle, uint8_t command, uint32_t number, u
             break;
         }
 
-        /* One job at a time. spif_is_running() says when the last has ended. */
+        /* One job at a time. spif_process() says when the last has ended. */
         if (handle->job_state != SPIF_JOB_IDLE)
         {
             err = SPIF_ERR_BUSY;
@@ -848,7 +855,7 @@ static spif_err_t spif_erase(spif_t *handle, uint8_t command, uint32_t number, u
         }
 
         /* No break from here on: the mutex is held until the job ends. The
-           first erase goes now, and spif_is_running() sends each of the others
+           first erase goes now, and spif_process() sends each of the others
            once the chip has done the one before. */
         handle->job_command = command;
         handle->job_address = number * unit;
@@ -932,7 +939,7 @@ static spif_err_t spif_page_start(spif_t *handle)
     }
 
 #if (SPIF_TRANSFER == SPIF_TRANSFER_DMA)
-    /* The DMA sends the data, and spif_is_running() lets the chip go once it has. */
+    /* The DMA sends the data, and spif_process() lets the chip go once it has. */
     handle->job_state   = SPIF_JOB_SEND;
     handle->job_start   = HAL_GetTick();
     handle->job_timeout = SPIF_TIMEOUT_TRANSFER_MS;

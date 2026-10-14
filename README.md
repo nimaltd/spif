@@ -22,14 +22,15 @@ Read or write any number of bytes at any address, and erase by sector, block or 
 - Erase a sector, a 32 KB or 64 KB block, or the whole chip. A chip without one
   of those sizes has it done in smaller pieces, or refused, never erased wrong
 - Writes and erases that return at once, so a state machine can do other work
-  and ask `spif_is_running()` later, or call `spif_wait()` to wait for them
+  and ask `spif_process()` later, or call `spif_wait()` to wait for them
 - Polling or DMA for the data, chosen once in `spif_config.h`
 - Write protection found at start up, and SST26 and AT25DF, which lock
   themselves at power up, unlocked
 - The chip's 64 bit unique ID, read each maker's way, for a serial number or a key
 - Every timeout set once in `spif_config.h`, from the datasheet plus half
-- Writes and erases wait only as long as the chip needs, by asking it every
-  millisecond, and with an RTOS your other threads run meanwhile
+- Writes and erases wait only as long as the chip needs: `spif_wait()` asks it
+  every millisecond with an RTOS, so your other threads run meanwhile, and
+  again at once without one
 - FreeRTOS, through CMSIS-RTOS v1 or v2, and ThreadX, by way of
   [osal](https://github.com/nimaltd/osal): a mutex per chip
 - A read or write past the end of the chip is refused, never wrapped round to
@@ -171,7 +172,7 @@ Either way a read, a write or an erase is a job, and your code goes on while it 
 #define SPIF_POLL_CHUNK                 4096U
 ```
 
-By polling the CPU moves every byte, so a long read would keep your code waiting for all of it: 64 KB is about 25 ms at 21 MHz. So `spif_read()` reads the first piece of at most `SPIF_POLL_CHUNK` bytes, and each `spif_is_running()` the next. With 4 KB no call takes longer than 1.6 ms at 21 MHz.
+By polling the CPU moves every byte, so a long read would keep your code waiting for all of it: 64 KB is about 25 ms at 21 MHz. So `spif_read()` reads the first piece of at most `SPIF_POLL_CHUNK` bytes, and each `spif_process()` the next. With 4 KB no call takes longer than 1.6 ms at 21 MHz.
 
 Bigger pieces are a little faster in all, since each piece sends its read command again, 5 or 6 bytes, and lets the chip go after it, so the bus is free for other devices between calls. Smaller ones keep each call shorter. Any value from 1 to 32768 works, and a configuration file from before this setting gets 4096. A read no longer than one piece is done when `spif_read()` returns. With DMA the setting is not used.
 
@@ -249,7 +250,7 @@ int main(void)
 
 `flash.size` then holds the size of the chip in bytes, `flash.sector_size` the size of a sector, and `flash.manufacturer` its maker, one of the `SPIF_MANUFACTURER_` values.
 
-A read, a write or an erase only starts the job and returns at once, so `spif_wait()` waits for it, as [below](#jobs-spif_is_running-and-spif_wait). It returns how the job ended: `SPIF_ERR_NONE` when it worked, which is 0. So check for it by name: `if (spif_wait(...))` would mean "if it failed".
+A read, a write or an erase only starts the job and returns at once, so `spif_wait()` waits for it, as [below](#jobs-spif_process-and-spif_wait). It returns how the job ended: `SPIF_ERR_NONE` when it worked, which is 0. So check for it by name: `if (spif_wait(...))` would mean "if it failed".
 
 ### Erase before you write
 
@@ -270,12 +271,12 @@ A sector is 4 KB on nearly every chip, and 64 KB or 256 KB on a Spansion FL-S or
 
 To change a few bytes and keep the rest of a sector, read the sector into RAM, change it there, erase the sector and write it back. That needs a sector of RAM and wears the sector a little each time, which is why a file system is the usual answer.
 
-### Jobs: spif_is_running() and spif_wait()
+### Jobs: spif_process() and spif_wait()
 
 A read, a write or an erase is a job: the call starts it and returns at once. Erasing a 16 MB chip can take minutes, a sector tens of milliseconds, and the chip does it by itself, so the CPU is yours meanwhile. A read by polling moves one piece of `SPIF_POLL_CHUNK` bytes per call; with DMA it moves by itself. Two calls follow a job:
 
-- `spif_is_running()` moves the job one step and returns: `true` while it runs. A write goes a page at a time, and an erase in pieces on some chips, so each call sends the next page or piece once the chip has finished the one before. A read by polling reads its next piece. Call it from a state machine or the main loop.
-- `spif_wait()` waits until the job has ended and returns how it ended. While the chip or the DMA has the job it sleeps a millisecond at a time through osal, so that with an RTOS other threads run; the pieces of a read by polling it reads one after the other. Called once `spif_is_running()` has said `false`, it returns at once.
+- `spif_process()` moves the job one step and returns: `true` while it runs. A write goes a page at a time, and an erase in pieces on some chips, so each call sends the next page or piece once the chip has finished the one before. A read by polling reads its next piece. Call it from a state machine or the main loop.
+- `spif_wait()` calls `spif_process()` until the job has ended, and returns how it ended. With an RTOS it sleeps a millisecond at a time through osal while the chip or the DMA has the job, so other threads run. Without one nothing else could run meanwhile, so it takes the next step at once and the job ends as soon as it can. The pieces of a read by polling it reads one after the other either way. Called once `spif_process()` has said `false`, it returns at once.
 
 ```c
 /* In a state machine: start the erase, and come back to it. */
@@ -285,14 +286,14 @@ case STATE_ERASE:
     break;
 
 case STATE_ERASING:
-    if (!spif_is_running(&flash))
+    if (!spif_process(&flash))
     {
         state = (spif_wait(&flash) == SPIF_ERR_NONE) ? STATE_WRITE : STATE_FAILED;
     }
     break;
 ```
 
-The next page of a write, and the next piece of an erase or of a read by polling, goes only when `spif_is_running()` or `spif_wait()` asks. So a state machine that comes back every 10 ms writes one page every 10 ms: 4 KB, 16 pages, then takes 160 ms instead of about 8. Come back every millisecond, or less, and a job runs as fast as the chip allows.
+The next page of a write, and the next piece of an erase or of a read by polling, goes only when `spif_process()` or `spif_wait()` asks. So a state machine that comes back every 10 ms writes one page every 10 ms: 4 KB, 16 pages, then takes 160 ms instead of about 8. Come back every millisecond, or less, and a job runs as fast as the chip allows.
 
 ```c
 /* Or simply, one step after the other. */
@@ -309,7 +310,7 @@ if (spif_wait(&flash) == SPIF_ERR_NONE)
 
 ### DMA
 
-By polling the CPU moves the data. Take an SPI clock of 21 MHz: 4 KB takes about 1.6 ms on the wire, and by polling the CPU spends those 1.6 ms in the HAL, a piece per call. By DMA it is free for them. A write by DMA still comes back for each page, every half a millisecond or so, so it pays off only if `spif_is_running()` is called often. DMA pays off most for reads of a few KB at a time.
+By polling the CPU moves the data. Take an SPI clock of 21 MHz: 4 KB takes about 1.6 ms on the wire, and by polling the CPU spends those 1.6 ms in the HAL, a piece per call. By DMA it is free for them. A write by DMA still comes back for each page, every half a millisecond or so, so it pays off only if `spif_process()` is called often. DMA pays off most for reads of a few KB at a time.
 
 For DMA, set up CubeMX like this:
 
@@ -428,7 +429,7 @@ void StartDefaultTask(void *argument)
 }
 ```
 
-A job holds the mutex from the call that starts it until `spif_is_running()` or `spif_wait()` sees it end, so call those from the thread that started it. A call from another thread while a job runs gets `SPIF_ERR_BUSY` at once, rather than waiting, so that thread can try again later. `spif_wait()` sleeps between its questions; a loop of your own around `spif_is_running()` should too, `osDelay(1)` for one, rather than spin.
+A job holds the mutex from the call that starts it until `spif_process()` or `spif_wait()` sees it end, so call those from the thread that started it. A call from another thread while a job runs gets `SPIF_ERR_BUSY` at once, rather than waiting, so that thread can try again later. `spif_wait()` sleeps between its questions; a loop of your own around `spif_process()` should too, `osDelay(1)` for one, rather than spin.
 
 The mutex is per chip, not per bus. Two devices on one SPI bus used from two threads at once would collide. Usually the HAL refuses the second transfer, which comes back as `SPIF_ERR_SPI`, but that is luck rather than safety. Use both from one thread, or guard the bus with a mutex of your own.
 
@@ -452,7 +453,7 @@ A common trap is USB mass storage: CubeMX's USB device library calls `STORAGE_Re
 | `spif_err_t spif_erase_block(spif_t *handle, uint32_t block)` | Start erasing 64 KB block number `block`, as a job |
 | `spif_err_t spif_erase_chip(spif_t *handle)` | Start erasing the whole chip, as a job |
 | `spif_err_t spif_unique_id(spif_t *handle, uint8_t *id)` | Read the chip's 64 bit unique ID into `SPIF_UNIQUE_ID_SIZE` bytes |
-| `bool spif_is_running(spif_t *handle)` | Whether a job still runs. Checks once, moves it on, and returns at once |
+| `bool spif_process(spif_t *handle)` | Whether a job still runs. Checks once, moves it on, and returns at once |
 | `spif_err_t spif_wait(spif_t *handle)` | Wait until the job has ended, and return how it ended |
 
 With the littlefs option, `spif_lfs.h` adds one more:
@@ -504,7 +505,7 @@ One command does everything:
 python test/run_tests.py
 ```
 
-It configures, builds and runs the suite twice, once by polling and once by DMA, then tells you plainly whether it passed. The LittleFS port has a suite of its own, built without `LFS_THREADSAFE` and with it: the real littlefs runs on a fake spif that finishes each job only when `spif_wait()` is called, so a port that skipped a wait would find nothing read and nothing written. littlefs is vendored into `test/littlefs/` for it, at v2.11.3. osal is replaced by a fake the tests control, so a mutex held by another thread, or refused by the RTOS, is tested with no RTOS at all. The RTOS side itself is osal's, and osal's own tests cover it. Add `--clean` to start from an empty build folder.
+It configures, builds and runs the suite five times, then tells you plainly whether it passed: by polling and by DMA, with `spif_config.h`'s times, then with the sector and chip erase times `HAL_MAX_DELAY`, then with no RTOS, by polling and by DMA, where `spif_wait()` must never sleep. The tests that keep the chip busy for minutes run only in the builds with an RTOS: without one the wait asks the chip again at once, so they would take minutes to run, and the time each step gets is the same either way. The LittleFS port has a suite of its own, built without `LFS_THREADSAFE` and with it: the real littlefs runs on a fake spif that finishes each job only when `spif_wait()` is called, so a port that skipped a wait would find nothing read and nothing written. littlefs is vendored into `test/littlefs/` for it, at v2.11.3. osal is replaced by a fake the tests control, so a mutex held by another thread, or refused by the RTOS, is tested with no RTOS at all. The RTOS side itself is osal's, and osal's own tests cover it. Add `--clean` to start from an empty build folder.
 
 If you prefer doing it by hand:
 
@@ -541,7 +542,7 @@ The CubeMX pack is replaced by stm32-installer, every name changed, reading and 
 | `SPIF_RTOS_DISABLE` | `OSAL_RTOS_NONE` |
 | `SPIF_DEBUG` | gone |
 
-The page, sector and block reads and writes used to cut a call short at the end of their page, sector or block. `spif_read()` and `spif_write()` go on for as long as `size` says. Writes and erases used to wait inside the call, and now return at once: follow each with `spif_wait()`, or with `spif_is_running()` from a state machine. See [Jobs](#jobs-spif_is_running-and-spif_wait).
+The page, sector and block reads and writes used to cut a call short at the end of their page, sector or block. `spif_read()` and `spif_write()` go on for as long as `size` says. Writes and erases used to wait inside the call, and now return at once: follow each with `spif_wait()`, or with `spif_process()` from a state machine. See [Jobs](#jobs-spif_process-and-spif_wait).
 
 The one to watch: the functions used to return `true` when they worked, and now return `SPIF_ERR_NONE`, which is 0. The compiler finds every renamed function for you, but not this:
 

@@ -7,7 +7,9 @@ set(SPIF_WARNINGS -Wall -Wextra -Wpedantic -Werror)
 
 # spif reaches the RTOS only through osal, and the fake osal in fake/ lets the
 # tests hold, refuse or delay the mutex at will, so there is no build per RTOS:
-# those are osal's tests to run. There is one per SPIF_TRANSFER setting.
+# those are osal's tests to run. There is one per SPIF_TRANSFER setting, one
+# for times that never run out, and two with no RTOS, where the wait does not
+# sleep.
 
 # Polling, with spif_config.h exactly as it ships.
 add_executable(test_spif test_spif.c)
@@ -63,7 +65,45 @@ target_compile_features(spif_forever PUBLIC c_std_11)
 add_executable(test_spif_forever test_spif.c)
 target_link_libraries(test_spif_forever PRIVATE spif_forever unity)
 
+# No RTOS, by polling with spif_config.h as it ships, and by DMA. spif_wait()
+# then takes the next step at once instead of sleeping, and the fake HAL moves
+# the clock on a microsecond for each question, as a real CPU spends it.
+add_library(spif_bare STATIC ${PROJECT_SOURCE_DIR}/src/spif.c)
+target_include_directories(spif_bare PUBLIC
+    ${PROJECT_SOURCE_DIR}/src
+    ${SPIF_CONFIG_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/fake)
+target_compile_definitions(spif_bare PUBLIC OSAL_RTOS=OSAL_RTOS_NONE)
+target_compile_features(spif_bare PUBLIC c_std_11)
+
+add_executable(test_spif_bare test_spif.c)
+target_link_libraries(test_spif_bare PRIVATE spif_bare unity)
+
+add_library(spif_bare_dma STATIC ${PROJECT_SOURCE_DIR}/src/spif.c)
+target_include_directories(spif_bare_dma PUBLIC
+    ${PROJECT_SOURCE_DIR}/src
+    ${SPIF_CONFIG_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/fake)
+target_compile_definitions(spif_bare_dma PUBLIC
+    OSAL_RTOS=OSAL_RTOS_NONE
+    SPIF_CONFIG_H
+    SPIF_TRANSFER=SPIF_TRANSFER_DMA
+    SPIF_POLL_CHUNK=4096U
+    SPIF_TIMEOUT_MUTEX_MS=HAL_MAX_DELAY
+    SPIF_TIMEOUT_TRANSFER_MS=400U
+    SPIF_TIMEOUT_PAGE_MS=5U
+    SPIF_TIMEOUT_SECTOR_MS=600U
+    SPIF_TIMEOUT_BLOCK32_MS=2400U
+    SPIF_TIMEOUT_BLOCK_MS=3000U
+    SPIF_TIMEOUT_CHIP_PER_MB_MS=18750U)
+target_compile_features(spif_bare_dma PUBLIC c_std_11)
+
+add_executable(test_spif_bare_dma test_spif.c)
+target_link_libraries(test_spif_bare_dma PRIVATE spif_bare_dma unity)
+
 # The stubs stand in for the CubeMX main.h and the HAL.
+target_include_directories(test_spif_bare PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
+target_include_directories(test_spif_bare_dma PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
 target_include_directories(test_spif PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
 target_include_directories(test_spif_dma PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
 target_include_directories(test_spif_forever PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
@@ -94,7 +134,8 @@ endforeach()
 target_compile_definitions(littlefs_lfs_threadsafe PUBLIC LFS_THREADSAFE)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    foreach(target spif spif_dma spif_forever test_spif test_spif_dma test_spif_forever test_spif_lfs
+    foreach(target spif spif_dma spif_forever spif_bare spif_bare_dma test_spif test_spif_dma
+                   test_spif_forever test_spif_bare test_spif_bare_dma test_spif_lfs
                    test_spif_lfs_threadsafe)
         target_compile_options(${target} PRIVATE ${SPIF_WARNINGS})
     endforeach()
@@ -103,3 +144,5 @@ endif()
 add_test(NAME spif_polling COMMAND test_spif)
 add_test(NAME spif_dma COMMAND test_spif_dma)
 add_test(NAME spif_forever COMMAND test_spif_forever)
+add_test(NAME spif_bare COMMAND test_spif_bare)
+add_test(NAME spif_bare_dma COMMAND test_spif_bare_dma)

@@ -31,6 +31,24 @@
 
 /*
  * ****************************************************************************************************
+ * Macros
+ * ****************************************************************************************************
+*/
+
+/* The same choices as osal's. */
+#define OSAL_RTOS_NONE      1
+#define OSAL_RTOS_CMSIS_V1  2
+#define OSAL_RTOS_CMSIS_V2  3
+#define OSAL_RTOS_THREADX   4
+
+/* An RTOS unless a build says none, so the sleep between the steps of a wait
+   is tested by every build but the bare ones. */
+#ifndef OSAL_RTOS
+#define OSAL_RTOS           OSAL_RTOS_CMSIS_V2
+#endif
+
+/*
+ * ****************************************************************************************************
  * Types
  * ****************************************************************************************************
 */
