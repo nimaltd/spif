@@ -42,11 +42,21 @@
    USER CODE markers is the user's and survives every update, so a check in it
    could be edited away, and one added later would never reach it. */
 
-/* The values SPIF_TRANSFER can take. They start at 1 on purpose: a misspelt
-   name counts as 0 inside #if, and 0 is then refused below instead of quietly
-   meaning one of them. */
+/* The values SPIF_MODE and SPIF_TRANSFER can take. They start at 1 on purpose:
+   a misspelt name counts as 0 inside #if, and 0 is then refused below instead
+   of quietly meaning one of them. */
+#define SPIF_MODE_BLOCKING      1
+#define SPIF_MODE_NON_BLOCKING  2
 #define SPIF_TRANSFER_POLLING   1
 #define SPIF_TRANSFER_DMA       2
+
+/* Added after the first version, so a configuration file from before has none
+   and gets the calls that wait, as every version before had. */
+#ifndef SPIF_MODE
+#define SPIF_MODE               SPIF_MODE_BLOCKING
+#elif (SPIF_MODE != SPIF_MODE_BLOCKING) && (SPIF_MODE != SPIF_MODE_NON_BLOCKING)
+#error "SPIF_MODE must be SPIF_MODE_BLOCKING or SPIF_MODE_NON_BLOCKING"
+#endif
 
 #ifndef SPIF_TRANSFER
 #error "SPIF_TRANSFER is not defined. Add it to spif_config.h"
@@ -171,7 +181,7 @@ extern "C"
  */
 typedef enum
 {
-    SPIF_ERR_NONE      = 0, /**< Done, or for a job, started: see spif_wait().              */
+    SPIF_ERR_NONE      = 0, /**< Done, or from a _nb call, started.                         */
     SPIF_ERR_INVALID   = 1, /**< A handle spif_init() did not accept, or not on this chip.   */
     SPIF_ERR_RANGE     = 2, /**< Past the end of the chip, or a number too high.             */
     SPIF_ERR_SPI       = 3, /**< The SPI transfer failed.                                    */
@@ -179,7 +189,7 @@ typedef enum
     SPIF_ERR_MUTEX     = 5, /**< The RTOS could not create or take the mutex.                */
     SPIF_ERR_CHIP      = 6, /**< No chip answered, or one this driver does not know.         */
     SPIF_ERR_PROTECTED = 7, /**< Write protected: the chip will not change some or all of it. */
-    SPIF_ERR_BUSY      = 8, /**< A job is still running: see spif_process().                 */
+    SPIF_ERR_BUSY      = 8, /**< A _nb job still runs: see spif_process().                   */
 
 } spif_err_t;
 
@@ -203,17 +213,18 @@ typedef struct
     uint8_t           cmd_erase_sector;  /**< Sector erase.                                 */
     uint8_t           cmd_erase_block32; /**< 32 KB erase, 0 when the chip has none.        */
     uint8_t           cmd_erase_block;   /**< 64 KB erase, 0 when the chip has none.        */
-    uint8_t           job_state;         /**< What the running job is doing.                */
-    uint8_t           job_command;       /**< The command an erase job sends.               */
-    spif_err_t        job_result;        /**< How the last job ended, for spif_wait().      */
-    uint8_t           *job_data;         /**< The caller's buffer.                          */
-    size_t            job_len;           /**< Bytes, or erases, in the whole job.           */
-    size_t            job_done;          /**< Bytes, or erases, finished so far.            */
-    uint32_t          job_address;       /**< Where in the chip the job starts.             */
-    uint32_t          job_step;          /**< Bytes in the piece under way.                 */
-    uint32_t          job_start;         /**< HAL_GetTick() when that piece started.        */
-    uint32_t          job_timeout;       /**< Time that piece may take.                     */
     osal_mutex_t      mutex;             /**< Lets one thread use the chip at a time.       */
+#if (SPIF_MODE == SPIF_MODE_NON_BLOCKING)
+    uint8_t           *job_data;         /**< The piece under way, in the caller's buffer.  */
+    size_t            job_left;          /**< Bytes, or erases, still to go, it included.   */
+    uint32_t          job_address;       /**< Where in the chip it goes.                    */
+    uint32_t          job_unit;          /**< Bytes one erase of an erase job clears.       */
+    uint32_t          job_start;         /**< HAL_GetTick() when it started.                */
+    uint32_t          job_timeout;       /**< Time it may take.                             */
+    spif_err_t        job_result;        /**< How the last job ended, for spif_wait().      */
+    uint8_t           job_state;         /**< What the job is doing.                        */
+    uint8_t           job_command;       /**< The command an erase job sends.               */
+#endif
 
 } spif_t;
 
@@ -273,6 +284,8 @@ spif_err_t spif_erase_chip(spif_t *handle);
  */
 spif_err_t spif_unique_id(spif_t *handle, uint8_t *id);
 
+#if (SPIF_MODE == SPIF_MODE_NON_BLOCKING)
+
 /*****************************************************************************************************/
 /**
  * @brief Start reading len bytes at address, as a job. Returns at once.
@@ -320,6 +333,8 @@ bool spif_process(spif_t *handle);
  * @brief Wait until the running job has ended, and say how it ended.
  */
 spif_err_t spif_wait(spif_t *handle);
+
+#endif /* SPIF_MODE == SPIF_MODE_NON_BLOCKING */
 
 #ifdef __cplusplus
 }

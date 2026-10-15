@@ -30,21 +30,31 @@
 
 /* USER CODE BEGIN SPIF_CONFIGURATION */
 
-/* How reads and writes move their data. Either way spif_read_nb() and
-   spif_write_nb() return once started, and spif_process() or spif_wait()
-   says when the job has finished. spif_read() and spif_write() wait for it.
-   One of:
-     SPIF_TRANSFER_POLLING  the CPU moves it, a piece per call
-     SPIF_TRANSFER_DMA      the DMA moves it, and the CPU is free meanwhile
+/* How the calls behave. One of:
+     SPIF_MODE_BLOCKING      spif_read(), spif_write() and the erases return
+                             once done. The smallest code, and the handle
+                             carries no job.
+     SPIF_MODE_NON_BLOCKING  spif_read_nb(), spif_write_nb() and the erases'
+                             _nb forms start a job and return at once, and
+                             spif_process() moves it on from your main loop or
+                             state machine. The calls that wait are there too.
+   A call that waits sleeps between its questions only with an RTOS, so other
+   threads run. Without one it asks again at once. */
+#define SPIF_MODE                       SPIF_MODE_BLOCKING
+
+/* How reads and writes move their data. One of:
+     SPIF_TRANSFER_POLLING  the CPU moves it
+     SPIF_TRANSFER_DMA      the DMA moves it, and the CPU is free for a job or,
+                            with an RTOS, for other threads
    With DMA, give the SPI a DMA channel for TX and one for RX in CubeMX, and
    turn on the SPI global interrupt. */
 #define SPIF_TRANSFER                   SPIF_TRANSFER_POLLING
 
-/* By polling, the most one call reads, in bytes, from 1 to 32768. A read is a
-   job: spif_read_nb() reads the first piece and each spif_process() the next,
-   so no call keeps your code longer than one piece takes. 4 KB take 1.6 ms at
-   21 MHz. Bigger is a little faster in all, since each piece sends its read
-   command again, 5 or 6 bytes. Not used with DMA. */
+/* With SPIF_MODE_NON_BLOCKING and by polling, the most one call reads, in
+   bytes, from 1 to 32768: spif_read_nb() reads the first piece and each
+   spif_process() the next, so no call keeps your code longer than one piece
+   takes. 4 KB take 1.6 ms at 21 MHz. Bigger is a little faster in all, since
+   each piece sends its read command again, 5 or 6 bytes. Not used otherwise. */
 #define SPIF_POLL_CHUNK                 4096U
 
 /* How long each step may take, in milliseconds, before it ends with

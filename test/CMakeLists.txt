@@ -7,26 +7,39 @@ set(SPIF_WARNINGS -Wall -Wextra -Wpedantic -Werror)
 
 # spif reaches the RTOS only through osal, and the fake osal in fake/ lets the
 # tests hold, refuse or delay the mutex at will, so there is no build per RTOS:
-# those are osal's tests to run. There is one per SPIF_TRANSFER setting, one
-# for times that never run out, and two with no RTOS, where the wait does not
-# sleep.
+# those are osal's tests to run. The fake stands for an RTOS unless a build says
+# OSAL_RTOS_NONE, where nothing may sleep and the fake HAL moves the clock on a
+# microsecond for each question, as a real CPU spends it.
 
-# Polling, with spif_config.h exactly as it ships.
-add_executable(test_spif test_spif.c)
-target_link_libraries(test_spif PRIVATE spif unity)
+# One build of the suite, with the settings given. Defining SPIF_CONFIG_H, the
+# include guard of spif_config.h, skips the shipped file, and the build then
+# gives every setting itself. The definitions are PUBLIC so the test file is
+# built with the same settings as the driver it tests.
+function(spif_suite name)
+    add_library(spif_${name} STATIC ${PROJECT_SOURCE_DIR}/src/spif.c)
+    target_include_directories(spif_${name} PUBLIC
+        ${PROJECT_SOURCE_DIR}/src
+        ${SPIF_CONFIG_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/fake)
+    target_compile_definitions(spif_${name} PUBLIC ${ARGN})
+    target_compile_features(spif_${name} PUBLIC c_std_11)
 
-# DMA. Defining the include guard of spif_config.h skips the shipped file, and
-# the settings are given here instead, the timeouts as it ships them. The
-# definitions are PUBLIC so the test file is built with the same settings as
-# the driver it tests.
-add_library(spif_dma STATIC ${PROJECT_SOURCE_DIR}/src/spif.c)
-target_include_directories(spif_dma PUBLIC
-    ${PROJECT_SOURCE_DIR}/src
-    ${SPIF_CONFIG_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/fake)
-target_compile_definitions(spif_dma PUBLIC
-    SPIF_CONFIG_H
-    SPIF_TRANSFER=SPIF_TRANSFER_DMA
+    add_executable(test_spif_${name} test_spif.c)
+    target_link_libraries(test_spif_${name} PRIVATE spif_${name} unity)
+
+    # The stubs stand in for the CubeMX main.h and the HAL.
+    target_include_directories(test_spif_${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
+
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(spif_${name} PRIVATE ${SPIF_WARNINGS})
+        target_compile_options(test_spif_${name} PRIVATE ${SPIF_WARNINGS})
+    endif()
+
+    add_test(NAME spif_${name} COMMAND test_spif_${name})
+endfunction()
+
+# The times spif_config.h ships, and its piece size.
+set(SPIF_SHIPPED
     SPIF_POLL_CHUNK=4096U
     SPIF_TIMEOUT_MUTEX_MS=HAL_MAX_DELAY
     SPIF_TIMEOUT_TRANSFER_MS=400U
@@ -35,22 +48,47 @@ target_compile_definitions(spif_dma PUBLIC
     SPIF_TIMEOUT_BLOCK32_MS=2400U
     SPIF_TIMEOUT_BLOCK_MS=3000U
     SPIF_TIMEOUT_CHIP_PER_MB_MS=18750U)
-target_compile_features(spif_dma PUBLIC c_std_11)
 
-add_executable(test_spif_dma test_spif.c)
-target_link_libraries(test_spif_dma PRIVATE spif_dma unity)
+# With spif_config.h exactly as it ships: the calls that wait, by polling.
+add_executable(test_spif test_spif.c)
+target_link_libraries(test_spif PRIVATE spif unity)
+target_include_directories(test_spif PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(spif PRIVATE ${SPIF_WARNINGS})
+    target_compile_options(test_spif PRIVATE ${SPIF_WARNINGS})
+endif()
+
+add_test(NAME spif_blocking COMMAND test_spif)
+
+# The calls that wait, by DMA.
+spif_suite(dma
+    SPIF_CONFIG_H
+    SPIF_MODE=SPIF_MODE_BLOCKING
+    SPIF_TRANSFER=SPIF_TRANSFER_DMA
+    ${SPIF_SHIPPED})
+
+# Jobs, by polling and by DMA.
+spif_suite(nb
+    SPIF_CONFIG_H
+    SPIF_MODE=SPIF_MODE_NON_BLOCKING
+    SPIF_TRANSFER=SPIF_TRANSFER_POLLING
+    ${SPIF_SHIPPED})
+
+spif_suite(nb_dma
+    SPIF_CONFIG_H
+    SPIF_MODE=SPIF_MODE_NON_BLOCKING
+    SPIF_TRANSFER=SPIF_TRANSFER_DMA
+    ${SPIF_SHIPPED})
 
 # HAL_MAX_DELAY for the sector and the chip erase times, which waits for ever
 # as it does in the HAL. Only the tests about that run in this build: every
 # other one expects the times spif_config.h ships, and a chip that never
-# finishes would never let it go. The rest as it ships, by polling.
-add_library(spif_forever STATIC ${PROJECT_SOURCE_DIR}/src/spif.c)
-target_include_directories(spif_forever PUBLIC
-    ${PROJECT_SOURCE_DIR}/src
-    ${SPIF_CONFIG_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/fake)
-target_compile_definitions(spif_forever PUBLIC
+# finishes would never let it go. Jobs by polling, so a test can move the tick
+# on in the middle of one.
+spif_suite(nb_forever
     SPIF_CONFIG_H
+    SPIF_MODE=SPIF_MODE_NON_BLOCKING
     SPIF_TRANSFER=SPIF_TRANSFER_POLLING
     SPIF_POLL_CHUNK=4096U
     SPIF_TIMEOUT_MUTEX_MS=HAL_MAX_DELAY
@@ -60,54 +98,31 @@ target_compile_definitions(spif_forever PUBLIC
     SPIF_TIMEOUT_BLOCK32_MS=2400U
     SPIF_TIMEOUT_BLOCK_MS=3000U
     SPIF_TIMEOUT_CHIP_PER_MB_MS=HAL_MAX_DELAY)
-target_compile_features(spif_forever PUBLIC c_std_11)
 
-add_executable(test_spif_forever test_spif.c)
-target_link_libraries(test_spif_forever PRIVATE spif_forever unity)
+# No RTOS, for each mode and each transfer.
+spif_suite(bare
+    OSAL_RTOS=OSAL_RTOS_NONE)
 
-# No RTOS, by polling with spif_config.h as it ships, and by DMA. spif_wait(),
-# and the calls that wait through it, then take the next step at once instead
-# of sleeping, and the fake HAL moves the clock on a microsecond for each
-# question, as a real CPU spends it.
-add_library(spif_bare STATIC ${PROJECT_SOURCE_DIR}/src/spif.c)
-target_include_directories(spif_bare PUBLIC
-    ${PROJECT_SOURCE_DIR}/src
-    ${SPIF_CONFIG_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/fake)
-target_compile_definitions(spif_bare PUBLIC OSAL_RTOS=OSAL_RTOS_NONE)
-target_compile_features(spif_bare PUBLIC c_std_11)
-
-add_executable(test_spif_bare test_spif.c)
-target_link_libraries(test_spif_bare PRIVATE spif_bare unity)
-
-add_library(spif_bare_dma STATIC ${PROJECT_SOURCE_DIR}/src/spif.c)
-target_include_directories(spif_bare_dma PUBLIC
-    ${PROJECT_SOURCE_DIR}/src
-    ${SPIF_CONFIG_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/fake)
-target_compile_definitions(spif_bare_dma PUBLIC
+spif_suite(bare_dma
     OSAL_RTOS=OSAL_RTOS_NONE
     SPIF_CONFIG_H
+    SPIF_MODE=SPIF_MODE_BLOCKING
     SPIF_TRANSFER=SPIF_TRANSFER_DMA
-    SPIF_POLL_CHUNK=4096U
-    SPIF_TIMEOUT_MUTEX_MS=HAL_MAX_DELAY
-    SPIF_TIMEOUT_TRANSFER_MS=400U
-    SPIF_TIMEOUT_PAGE_MS=5U
-    SPIF_TIMEOUT_SECTOR_MS=600U
-    SPIF_TIMEOUT_BLOCK32_MS=2400U
-    SPIF_TIMEOUT_BLOCK_MS=3000U
-    SPIF_TIMEOUT_CHIP_PER_MB_MS=18750U)
-target_compile_features(spif_bare_dma PUBLIC c_std_11)
+    ${SPIF_SHIPPED})
 
-add_executable(test_spif_bare_dma test_spif.c)
-target_link_libraries(test_spif_bare_dma PRIVATE spif_bare_dma unity)
+spif_suite(bare_nb
+    OSAL_RTOS=OSAL_RTOS_NONE
+    SPIF_CONFIG_H
+    SPIF_MODE=SPIF_MODE_NON_BLOCKING
+    SPIF_TRANSFER=SPIF_TRANSFER_POLLING
+    ${SPIF_SHIPPED})
 
-# The stubs stand in for the CubeMX main.h and the HAL.
-target_include_directories(test_spif_bare PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
-target_include_directories(test_spif_bare_dma PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
-target_include_directories(test_spif PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
-target_include_directories(test_spif_dma PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
-target_include_directories(test_spif_forever PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stub)
+spif_suite(bare_nb_dma
+    OSAL_RTOS=OSAL_RTOS_NONE
+    SPIF_CONFIG_H
+    SPIF_MODE=SPIF_MODE_NON_BLOCKING
+    SPIF_TRANSFER=SPIF_TRANSFER_DMA
+    ${SPIF_SHIPPED})
 
 # The LittleFS port, src/spif_lfs.c, over a fake spif the test file provides,
 # with the real littlefs on top. littlefs is vendored in test/littlefs at
@@ -135,15 +150,7 @@ endforeach()
 target_compile_definitions(littlefs_lfs_threadsafe PUBLIC LFS_THREADSAFE)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    foreach(target spif spif_dma spif_forever spif_bare spif_bare_dma test_spif test_spif_dma
-                   test_spif_forever test_spif_bare test_spif_bare_dma test_spif_lfs
-                   test_spif_lfs_threadsafe)
+    foreach(target test_spif_lfs test_spif_lfs_threadsafe)
         target_compile_options(${target} PRIVATE ${SPIF_WARNINGS})
     endforeach()
 endif()
-
-add_test(NAME spif_polling COMMAND test_spif)
-add_test(NAME spif_dma COMMAND test_spif_dma)
-add_test(NAME spif_forever COMMAND test_spif_forever)
-add_test(NAME spif_bare COMMAND test_spif_bare)
-add_test(NAME spif_bare_dma COMMAND test_spif_bare_dma)

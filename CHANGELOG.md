@@ -41,18 +41,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   each MB, and the wait for the mutex. The values shipped are a W25Q128JV's
   longest times plus half again. The fixed 100 ms and 2 s of version 2 are gone.
   `HAL_MAX_DELAY` in any of them waits for ever, as it does in the HAL.
-- **Reads, writes and erases can go on while the caller does something else.**
-  Each has a `_nb` form, `spif_read_nb()` to `spif_erase_chip_nb()`, that
-  starts it as a job and returns at once. The new `spif_process()` moves the
-  job on, a piece of a read, the next page of a write or the next piece of an
-  erase, and says whether it is done, for a state machine. The new
-  `spif_wait()` waits for the job to end, with an RTOS sleeping through osal
-  while the chip works, and returns how it ended. `spif_read()`,
-  `spif_write()` and the erases still return once done, as in version 2. By
-  polling a read moves at most `SPIF_POLL_CHUNK` bytes, 4 KB as shipped, per
-  `_nb` call, so no call keeps the caller long; with DMA it moves by itself.
-  Only the data goes by DMA: commands and status reads, a few bytes each, go
-  by polling. With polling, no DMA code is compiled in at all.
+- **Blocking or non-blocking, chosen with `SPIF_MODE` in `spif_config.h`.**
+  `spif_read()`, `spif_write()` and the erases return once done, as in version
+  2, and that is the default: the smallest code, and a handle with no job in
+  it. With `SPIF_MODE_NON_BLOCKING` each has a `_nb` form, `spif_read_nb()` to
+  `spif_erase_chip_nb()`, that starts it as a job and returns at once. The new
+  `spif_process()` moves the job on, a piece of a read, the next page of a
+  write or the next piece of an erase, and says whether it is done, for a
+  state machine. The new `spif_wait()` waits for the job to end, with an RTOS
+  sleeping through osal while the chip works, and returns how it ended. By
+  polling a job reads at most `SPIF_POLL_CHUNK` bytes, 4 KB as shipped, per
+  call, so no call keeps the caller long; with DMA it moves by itself. Only
+  the data goes by DMA: commands and status reads, a few bytes each, go by
+  polling. With polling, no DMA code is compiled in at all.
 - A sector is the smallest part the chip erases, `sector_size` bytes: 4 KB on
   nearly every chip, 64 KB or 256 KB on a Spansion FL-S or an old M25P.
 - `spif_write()` takes a pointer to `const` data.
@@ -94,9 +95,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Write protection found by `spif_init()`, which returns the new
   `SPIF_ERR_PROTECTED` with the handle still working. Micron and Spansion
   report a refused write or erase, and spif returns it then too.
-- `spif_read_nb()`, `spif_write_nb()`, `spif_erase_sector_nb()`,
-  `spif_erase_block32_nb()`, `spif_erase_block_nb()`, `spif_erase_chip_nb()`,
-  `spif_process()`, `spif_wait()` and `SPIF_ERR_BUSY`, for jobs.
+- `SPIF_MODE`, and with `SPIF_MODE_NON_BLOCKING` `spif_read_nb()`,
+  `spif_write_nb()`, `spif_erase_sector_nb()`, `spif_erase_block32_nb()`,
+  `spif_erase_block_nb()`, `spif_erase_chip_nb()`, `spif_process()`,
+  `spif_wait()` and `SPIF_ERR_BUSY`, for jobs.
 - A real mutex per chip with an RTOS: CMSIS-RTOS v1 and v2 for FreeRTOS, and
   ThreadX, through osal.
 - Error values that say what went wrong: `SPIF_ERR_INVALID`, `SPIF_ERR_RANGE`,

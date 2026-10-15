@@ -25,12 +25,14 @@
  *              tests move, so every wait is checked instantly, DMA included.
  *              osal is a fake the tests control.
  *
- *              Built twice, once for each SPIF_TRANSFER setting. Every read,
- *              write and erase is finished with spif_wait(), as a user would,
- *              so most tests run unchanged in both. A test that only means
- *              something with DMA is left out of the polling build. A third
- *              build sets the sector and chip erase times to HAL_MAX_DELAY,
- *              and runs only the tests that it waits for ever.
+ *              Built for each SPIF_MODE and SPIF_TRANSFER, with an RTOS and
+ *              without one. Every read, write and erase is made with the call
+ *              that waits, as a user would, so most tests run unchanged in
+ *              all of them. A test of what only a job does is built only with
+ *              SPIF_MODE_NON_BLOCKING, and one that only means something with
+ *              DMA only with DMA. One more build sets the sector and chip
+ *              erase times to HAL_MAX_DELAY, and runs only the tests that it
+ *              waits for ever.
  */
 
 /*
@@ -94,14 +96,16 @@
 #define KB64                0x10000UL
 #define KB256               0x40000UL
 
-/* Whether this build moves read and write data by DMA. */
+/* Whether this build moves read and write data by DMA, and has jobs. */
 #define USES_DMA            (SPIF_TRANSFER == SPIF_TRANSFER_DMA)
+#define USES_JOBS           (SPIF_MODE == SPIF_MODE_NON_BLOCKING)
 
 /* Whether this build waits for ever for an erase, as HAL_MAX_DELAY says. */
 #define WAITS_FOR_EVER      (SPIF_TIMEOUT_SECTOR_MS == HAL_MAX_DELAY)
 
-/* Public calls that take a pointer, each tried with a NULL. */
-#define NULL_CALLS          15
+/* Public calls that take a pointer, each tried with a NULL: with jobs,
+   spif_process() and spif_wait() as well. */
+#define NULL_CALLS          (USES_JOBS ? 15 : 13)
 
 /*
  * ****************************************************************************************************
@@ -263,6 +267,8 @@ static bool       chip_spi_begin(const SPI_HandleTypeDef *hspi, uint16_t size,
 static spif_err_t init_chip(uint8_t manufacturer, uint8_t capacity);
 static spif_err_t init_kind(chip_kind_t kind, uint8_t maker, uint8_t type, uint8_t capacity,
                             uint32_t size);
+static bool       job_running(void);
+static spif_err_t command_run(int command, uint32_t address, uint32_t len);
 static spif_err_t read_all(uint32_t address, uint8_t *data, size_t len);
 static spif_err_t write_all(uint32_t address, const uint8_t *data, size_t len);
 static spif_err_t erase_sector(uint32_t sector);
@@ -983,12 +989,7 @@ void test_a_handle_full_of_rubbish_works_after_init(void)
 
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_init(&local, &test_spi, &test_cs_port, CS_PIN));
 
-    err = spif_write_nb(&local, 10U, pattern, 8U);
-
-    if (err == SPIF_ERR_NONE)
-    {
-        err = spif_wait(&local);
-    }
+    err = spif_write(&local, 10U, pattern, 8U);
 
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, err);
     TEST_ASSERT_EQUAL_MEMORY(pattern, &chip_mem[10U], 8U);
@@ -1441,9 +1442,11 @@ void test_a_read_over_64kb_goes_in_pieces(void)
 
         TEST_ASSERT_EQUAL_MEMORY(pattern, readback, lengths[i]);
         TEST_ASSERT_TRUE_MESSAGE(chip.largest_transfer <= 0xFFFFU, "more than the HAL can count");
-        TEST_ASSERT_EQUAL_INT_MESSAGE(USES_DMA ? 1
-                                               : (int)((lengths[i] + SPIF_POLL_CHUNK - 1U) /
-                                                       SPIF_POLL_CHUNK),
+        /* One read command, where the chip sends on to the end, except for a
+           job by polling, which sends one for each piece. */
+        TEST_ASSERT_EQUAL_INT_MESSAGE((USES_DMA || !USES_JOBS) ? 1
+                                                               : (int)((lengths[i] + SPIF_POLL_CHUNK - 1U) /
+                                                                       SPIF_POLL_CHUNK),
                                       chip.selects, "the read was split into the wrong commands");
     }
 }
@@ -1486,11 +1489,11 @@ void test_zero_bytes_does_nothing(void)
 {
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, init_chip(SPIF_MANUFACTURER_WINBOND, CHIP_16MB));
 
-    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_read_nb(&flash, 0U, readback, 0U));
-    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_write_nb(&flash, 0U, pattern, 0U));
-    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_read_nb(&flash, flash.size, readback, 0U));
-    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_write_nb(&flash, flash.size, pattern, 0U));
-    TEST_ASSERT_FALSE_MESSAGE(spif_process(&flash), "nothing should be running");
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_read(&flash, 0U, readback, 0U));
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_write(&flash, 0U, pattern, 0U));
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_read(&flash, flash.size, readback, 0U));
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_write(&flash, flash.size, pattern, 0U));
+    TEST_ASSERT_FALSE_MESSAGE(job_running(), "nothing should be running");
     TEST_ASSERT_EQUAL_INT(0, chip.transfers);
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, mutex_takes, "nothing to do still took the mutex");
 }
@@ -1608,15 +1611,17 @@ void test_the_wait_sleeps_only_with_an_rtos(void)
 
     /* A job started with _nb, and waited for. */
     sleeps = 0;
+#if USES_JOBS
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_write_nb(&flash, 1024U, pattern, 1024U));
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
+#endif
 
 #if (OSAL_RTOS == OSAL_RTOS_NONE)
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, with_call, "spif_write() slept with no RTOS");
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps, "spif_wait() slept with no RTOS");
 #else
     TEST_ASSERT_TRUE_MESSAGE(with_call > 0, "spif_write() never slept for the other threads");
-    TEST_ASSERT_TRUE_MESSAGE(sleeps > 0, "spif_wait() never slept for the other threads");
+    TEST_ASSERT_TRUE_MESSAGE(!USES_JOBS || (sleeps > 0), "spif_wait() never slept for the other threads");
 #endif
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, chip.faults, chip.fault);
 }
@@ -1868,6 +1873,7 @@ void test_a_chip_that_never_finishes_times_out(void)
 }
 
 #if WAITS_FOR_EVER
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief HAL_MAX_DELAY waits for ever: an erase still running 49.7 days on is not timed out.
@@ -1903,7 +1909,9 @@ void test_hal_max_delay_outlasts_the_tick(void)
 
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
 }
+#endif
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief HAL_MAX_DELAY for each MB of a chip erase is not multiplied into a time.
@@ -1918,6 +1926,7 @@ void test_hal_max_delay_per_mb_is_not_multiplied(void)
     TEST_ASSERT_EQUAL_HEX32(HAL_MAX_DELAY, flash.job_timeout);
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
 }
+#endif
 #endif /* WAITS_FOR_EVER */
 
 /*****************************************************************************************************/
@@ -1938,6 +1947,7 @@ void test_the_hal_gets_the_transfer_time(void)
  * ----------------------------------------------------------------------------------------------------
  */
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief With nothing running, spif_process() says no, and spif_wait() returns at once.
@@ -1951,7 +1961,9 @@ void test_nothing_started_is_not_running(void)
     TEST_ASSERT_EQUAL_INT(0, sleeps);
     TEST_ASSERT_EQUAL_INT(0, chip.transfers);
 }
+#endif
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief An erase returns at once, and spif_process() follows it while the caller works.
@@ -1982,7 +1994,9 @@ void test_an_erase_returns_at_once(void)
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps,
                                   "spif_process() or spif_wait() slept on an ended job");
 }
+#endif
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief A write returns once its first page is out, and spif_process() sends the others.
@@ -2007,7 +2021,9 @@ void test_a_write_returns_after_its_first_page(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps, "spif_process() slept");
 }
+#endif
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief While a job runs every other call is refused as busy, with no traffic, and the job goes on.
@@ -2035,7 +2051,9 @@ void test_a_call_while_a_job_runs_is_refused(void)
                                   "a refused call took over the result of the job");
     TEST_ASSERT_EQUAL_INT(1, chip.erases);
 }
+#endif
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief spif_wait() reports a call refused at once too, so simple code needs only it.
@@ -2059,6 +2077,7 @@ void test_wait_reports_a_refused_call(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_RANGE, spif_wait(&flash));
     TEST_ASSERT_EQUAL_INT(0, chip.erases);
 }
+#endif
 
 
 /*****************************************************************************************************/
@@ -2072,23 +2091,24 @@ void test_a_call_that_waits_returns_once_done(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_write(&flash, 0U, pattern, 768U));
     TEST_ASSERT_EQUAL_INT(3, chip.programs);
     TEST_ASSERT_EQUAL_MEMORY(pattern, chip_mem, 768U);
-    TEST_ASSERT_FALSE_MESSAGE(spif_process(&flash), "returned with the write still running");
+    TEST_ASSERT_FALSE_MESSAGE(job_running(), "returned with the write still running");
     TEST_ASSERT_FALSE(chip_busy());
     TEST_ASSERT_EQUAL_INT(0, mutex_held);
 
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_read(&flash, 0U, readback, 768U));
     TEST_ASSERT_EQUAL_MEMORY(pattern, readback, 768U);
-    TEST_ASSERT_FALSE_MESSAGE(spif_process(&flash), "returned with the read still running");
+    TEST_ASSERT_FALSE_MESSAGE(job_running(), "returned with the read still running");
     TEST_ASSERT_EQUAL_INT(0, mutex_held);
 
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_erase_sector(&flash, 0U));
     TEST_ASSERT_EQUAL_HEX8(0xFFU, chip_mem[0]);
-    TEST_ASSERT_FALSE_MESSAGE(spif_process(&flash), "returned with the erase still running");
+    TEST_ASSERT_FALSE_MESSAGE(job_running(), "returned with the erase still running");
     TEST_ASSERT_FALSE(chip_busy());
     TEST_ASSERT_EQUAL_INT(0, mutex_held);
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, chip.faults, chip.fault);
 }
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief A call that waits, refused while a _nb job runs, leaves that job alone.
@@ -2117,6 +2137,7 @@ void test_a_call_that_waits_leaves_a_running_job_alone(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_wait(&flash));
     TEST_ASSERT_EQUAL_INT(1, chip.erases);
 }
+#endif
 
 /*****************************************************************************************************/
 /**
@@ -2139,13 +2160,14 @@ void test_a_call_that_waits_reports_a_refused_call(void)
 }
 /*****************************************************************************************************/
 /**
- * @brief Every command, on every kind of chip, behaves as a job should.
+ * @brief Every command, on every kind of chip, does what it should, and as a job behaves as one.
  *
- * Each write and erase, and with DMA each read, returns at once without
- * sleeping. spif_process() then says true, holds the chip for the job, and
- * refuses other calls, until the chip has done it. Then it says false,
- * spif_wait() returns the result at once, and the chip holds what it should.
- * A read by polling is done when it returns.
+ * With jobs, each write and erase, and with DMA each read, returns at once
+ * without sleeping. spif_process() then says true, holds the chip for the
+ * job, and refuses other calls, until the chip has done it. Then it says
+ * false, and spif_wait() returns the result at once. A read by polling is
+ * done when it returns. Either way the chip is free afterwards, and holds
+ * what it should.
  */
 void test_every_command_on_every_chip(void)
 {
@@ -2249,33 +2271,7 @@ void test_every_command_on_every_chip(void)
             }
 
             start = now_us;
-
-            switch (command)
-            {
-                case 0:
-                    err = spif_write_nb(&flash, address, pattern, len);
-                    break;
-
-                case 1:
-                    err = spif_erase_sector_nb(&flash, 1U);
-                    break;
-
-                case 2:
-                    err = spif_erase_block32_nb(&flash, 1U);
-                    break;
-
-                case 3:
-                    err = spif_erase_block_nb(&flash, 1U);
-                    break;
-
-                case 4:
-                    err = spif_erase_chip_nb(&flash);
-                    break;
-
-                default:
-                    err = spif_read_nb(&flash, address, readback, len);
-                    break;
-            }
+            err   = command_run(command, address, len);
 
             /* A chip whose sectors are bigger than 32 KB refuses that erase, at
                once and with no traffic. */
@@ -2283,11 +2279,15 @@ void test_every_command_on_every_chip(void)
             {
                 TEST_ASSERT_EQUAL_INT_MESSAGE(SPIF_ERR_INVALID, err, chips[i].name);
                 TEST_ASSERT_EQUAL_INT(0, chip.transfers);
+#if USES_JOBS
                 TEST_ASSERT_EQUAL_INT(SPIF_ERR_INVALID, spif_wait(&flash));
+#endif
                 continue;
             }
 
             TEST_ASSERT_EQUAL_INT_MESSAGE(SPIF_ERR_NONE, err, chips[i].name);
+
+#if USES_JOBS
             TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps, "a command slept");
 
             if ((command < 5) || USES_DMA)
@@ -2319,6 +2319,14 @@ void test_every_command_on_every_chip(void)
             TEST_ASSERT_FALSE(spif_process(&flash));
             TEST_ASSERT_EQUAL_INT_MESSAGE(SPIF_ERR_NONE, spif_wait(&flash), chips[i].name);
             TEST_ASSERT_EQUAL_INT_MESSAGE(0, sleeps, "spif_process() or spif_wait() slept");
+#else
+            (void)start;
+            (void)transfers;
+            (void)rounds;
+            (void)id;
+#endif
+
+            TEST_ASSERT_FALSE_MESSAGE(chip_busy(), chips[i].name);
             TEST_ASSERT_EQUAL_INT(0, mutex_held);
             TEST_ASSERT_FALSE(chip.cs_low);
 
@@ -2347,6 +2355,7 @@ void test_every_command_on_every_chip(void)
     }
 }
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief A state machine runs every command, one after another, and never waits.
@@ -2451,9 +2460,11 @@ void test_a_state_machine_runs_every_command(void)
     TEST_ASSERT_EQUAL_MEMORY(pattern, readback, 300U);
     TEST_ASSERT_EQUAL_MEMORY(factory_id, id, sizeof(id));
 }
+#endif
 
 #if USES_DMA
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief A DMA read returns once it has started, and spif_process() says when it is done.
@@ -2472,7 +2483,9 @@ void test_a_dma_read_returns_at_once(void)
     TEST_ASSERT_EQUAL_MEMORY(pattern, readback, 4096U);
     TEST_ASSERT_FALSE(spif_process(&flash));
 }
+#endif
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief A DMA write sends each page only once the chip has stored the one before.
@@ -2495,6 +2508,7 @@ void test_a_dma_write_goes_a_page_at_a_time(void)
     TEST_ASSERT_EQUAL_INT(2, chip.dma_transfers);
     TEST_ASSERT_EQUAL_MEMORY(pattern, &chip_mem[0x80U], 384U);
 }
+#endif
 
 /*****************************************************************************************************/
 /**
@@ -2541,6 +2555,7 @@ void test_a_dma_error_is_reported(void)
 
 #else
 
+#if USES_JOBS
 /*****************************************************************************************************/
 /**
  * @brief By polling a read goes a piece per call, none bigger than SPIF_POLL_CHUNK.
@@ -2583,6 +2598,7 @@ void test_a_polling_read_goes_a_piece_at_a_time(void)
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, mutex_held, "kept the mutex after a read in one piece");
     TEST_ASSERT_FALSE(spif_process(&flash));
 }
+#endif
 
 #endif /* USES_DMA */
 
@@ -2714,8 +2730,8 @@ void test_a_handle_without_init_is_refused(void)
 {
     uint8_t id[SPIF_UNIQUE_ID_SIZE];
 
-    TEST_ASSERT_EQUAL_INT(SPIF_ERR_INVALID, spif_read_nb(&flash, 0U, readback, 1U));
-    TEST_ASSERT_EQUAL_INT(SPIF_ERR_INVALID, spif_write_nb(&flash, 0U, pattern, 1U));
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_INVALID, spif_read(&flash, 0U, readback, 1U));
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_INVALID, spif_write(&flash, 0U, pattern, 1U));
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_INVALID, erase_sector(0U));
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_INVALID, erase_block32(0U));
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_INVALID, erase_block(0U));
@@ -2874,22 +2890,26 @@ int main(void)
     RUN_TEST(test_a_chip_that_never_finishes_times_out);
     RUN_TEST(test_the_hal_gets_the_transfer_time);
 
+    RUN_TEST(test_a_call_that_waits_returns_once_done);
+    RUN_TEST(test_a_call_that_waits_reports_a_refused_call);
+    RUN_TEST(test_every_command_on_every_chip);
+#if USES_JOBS
     RUN_TEST(test_nothing_started_is_not_running);
     RUN_TEST(test_an_erase_returns_at_once);
     RUN_TEST(test_a_write_returns_after_its_first_page);
     RUN_TEST(test_a_call_while_a_job_runs_is_refused);
     RUN_TEST(test_wait_reports_a_refused_call);
-    RUN_TEST(test_a_call_that_waits_returns_once_done);
     RUN_TEST(test_a_call_that_waits_leaves_a_running_job_alone);
-    RUN_TEST(test_a_call_that_waits_reports_a_refused_call);
-    RUN_TEST(test_every_command_on_every_chip);
     RUN_TEST(test_a_state_machine_runs_every_command);
+#endif
 #if USES_DMA
+#if USES_JOBS
     RUN_TEST(test_a_dma_read_returns_at_once);
     RUN_TEST(test_a_dma_write_goes_a_page_at_a_time);
+#endif
     RUN_TEST(test_a_stuck_dma_is_stopped_at_its_time);
     RUN_TEST(test_a_dma_error_is_reported);
-#else
+#elif USES_JOBS
     RUN_TEST(test_a_polling_read_goes_a_piece_at_a_time);
 #endif
 
@@ -3783,6 +3803,92 @@ static spif_err_t init_kind(chip_kind_t kind, uint8_t maker, uint8_t type, uint8
 
 /*****************************************************************************************************/
 /**
+ * @brief Whether a job still runs on the chip. Without jobs none ever does.
+ *
+ * @return true while one runs.
+ */
+static bool job_running(void)
+{
+#if USES_JOBS
+    return spif_process(&flash);
+#else
+    return false;
+#endif
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Make one of the commands test_every_command_on_every_chip() tries.
+ *
+ * With jobs the _nb call starts it, and otherwise the call that waits makes it.
+ *
+ * @param[in] command  0 write, 1 sector, 2 32 KB block, 3 64 KB block, 4 chip, 5 read.
+ * @param[in] address  Where a write or a read goes.
+ * @param[in] len      Bytes a write or a read moves.
+ * @return What the call returned.
+ */
+static spif_err_t command_run(int command, uint32_t address, uint32_t len)
+{
+    spif_err_t err = SPIF_ERR_NONE;
+
+    switch (command)
+    {
+#if USES_JOBS
+        case 0:
+            err = spif_write_nb(&flash, address, pattern, len);
+            break;
+
+        case 1:
+            err = spif_erase_sector_nb(&flash, 1U);
+            break;
+
+        case 2:
+            err = spif_erase_block32_nb(&flash, 1U);
+            break;
+
+        case 3:
+            err = spif_erase_block_nb(&flash, 1U);
+            break;
+
+        case 4:
+            err = spif_erase_chip_nb(&flash);
+            break;
+
+        default:
+            err = spif_read_nb(&flash, address, readback, len);
+            break;
+#else
+        case 0:
+            err = spif_write(&flash, address, pattern, len);
+            break;
+
+        case 1:
+            err = spif_erase_sector(&flash, 1U);
+            break;
+
+        case 2:
+            err = spif_erase_block32(&flash, 1U);
+            break;
+
+        case 3:
+            err = spif_erase_block(&flash, 1U);
+            break;
+
+        case 4:
+            err = spif_erase_chip(&flash);
+            break;
+
+        default:
+            err = spif_read(&flash, address, readback, len);
+            break;
+#endif
+    }
+
+    return err;
+}
+
+/*****************************************************************************************************/
+/**
  * @brief Read as a user would, with the call that waits.
  *
  * @return How it ended.
@@ -3896,35 +4002,35 @@ static bool assert_stops(int which)
                 break;
 
             case 3:
-                (void)spif_read_nb(NULL, 0U, readback, 1U);
+                (void)spif_read(NULL, 0U, readback, 1U);
                 break;
 
             case 4:
-                (void)spif_read_nb(&flash, 0U, NULL, 1U);
+                (void)spif_read(&flash, 0U, NULL, 1U);
                 break;
 
             case 5:
-                (void)spif_write_nb(NULL, 0U, pattern, 1U);
+                (void)spif_write(NULL, 0U, pattern, 1U);
                 break;
 
             case 6:
-                (void)spif_write_nb(&flash, 0U, NULL, 1U);
+                (void)spif_write(&flash, 0U, NULL, 1U);
                 break;
 
             case 7:
-                (void)spif_erase_sector_nb(NULL, 0U);
+                (void)spif_erase_sector(NULL, 0U);
                 break;
 
             case 8:
-                (void)spif_erase_block32_nb(NULL, 0U);
+                (void)spif_erase_block32(NULL, 0U);
                 break;
 
             case 9:
-                (void)spif_erase_block_nb(NULL, 0U);
+                (void)spif_erase_block(NULL, 0U);
                 break;
 
             case 10:
-                (void)spif_erase_chip_nb(NULL);
+                (void)spif_erase_chip(NULL);
                 break;
 
             case 11:
@@ -3935,12 +4041,18 @@ static bool assert_stops(int which)
                 (void)spif_unique_id(&flash, NULL);
                 break;
 
+#if USES_JOBS
             case 13:
                 (void)spif_process(NULL);
                 break;
 
-            default:
+            case 14:
                 (void)spif_wait(NULL);
+                break;
+#endif
+
+            default:
+                /* No such call. */
                 break;
         }
 
