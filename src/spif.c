@@ -138,6 +138,7 @@ static spif_err_t spif_job_read(spif_t *handle);
 #endif
 static spif_err_t spif_job_stored(spif_t *handle);
 static void       spif_job_end(spif_t *handle, spif_err_t err);
+static spif_err_t spif_wait_started(spif_t *handle, spif_err_t err);
 static uint32_t   spif_size_bytes(const uint8_t *id);
 static void       spif_pick_commands(spif_t *handle, const uint8_t *id, uint32_t size);
 static spif_err_t spif_unlock(spif_t *handle);
@@ -306,12 +307,192 @@ spif_err_t spif_init(spif_t *handle, SPI_HandleTypeDef *hspi, GPIO_TypeDef *cs_p
 
 /*****************************************************************************************************/
 /**
- * @brief Start reading len bytes starting at address. Not from an interrupt.
+ * @brief Read len bytes starting at address, and return once they are in. Not from an interrupt.
+ *
+ * spif_read_nb() and spif_wait() in one call, for code with nothing else to
+ * do meanwhile. With an RTOS other threads run while the DMA has the job.
+ * Without one it never sleeps, and returns as soon as the last byte is in.
+ *
+ * @param[in,out] handle   Handle from spif_init().
+ * @param[in]     address  First byte to read.
+ * @param[out]    data     Where the bytes go. With DMA, in memory the DMA can reach.
+ * @param[in]     len      Bytes to read, up to the end of the chip.
+ * @return SPIF_ERR_NONE once every byte is in, or the SPIF_ERR_ value that says what went wrong.
+ */
+spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len)
+{
+    return spif_wait_started(handle, spif_read_nb(handle, address, data, len));
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Write len bytes at address, into flash erased beforehand, and return once stored.
+ *
+ * spif_write_nb() and spif_wait() in one call, for code with nothing else to
+ * do meanwhile. With an RTOS other threads run while the chip stores each
+ * page. Without one it never sleeps, and sends each page as soon as the chip
+ * has stored the one before. Not from an interrupt.
+ *
+ * @param[in,out] handle   Handle from spif_init().
+ * @param[in]     address  First byte to write.
+ * @param[in]     data     The bytes to write. With DMA, in memory the DMA can reach.
+ * @param[in]     len      Bytes to write, up to the end of the chip.
+ * @return SPIF_ERR_NONE once every page is stored, or the SPIF_ERR_ value that
+ *         says what went wrong. After an error, the pages before the failing one are written.
+ */
+spif_err_t spif_write(spif_t *handle, uint32_t address, const uint8_t *data, size_t len)
+{
+    return spif_wait_started(handle, spif_write_nb(handle, address, data, len));
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Erase one sector, the smallest part the chip erases, and return once it is erased.
+ *
+ * spif_erase_sector_nb() and spif_wait() in one call: tens of milliseconds as
+ * a rule, 400 ms at most on a W25Q128JV. With an RTOS other threads run
+ * meanwhile. Without one it never sleeps, and returns as soon as the chip has
+ * finished. Not from an interrupt.
+ *
+ * @param[in,out] handle  Handle from spif_init().
+ * @param[in]     sector  Sector number, SPIF_ADDRESS_TO_SECTOR() of an address in it.
+ * @return SPIF_ERR_NONE once erased, or the SPIF_ERR_ value that says what went wrong.
+ */
+spif_err_t spif_erase_sector(spif_t *handle, uint32_t sector)
+{
+    return spif_wait_started(handle, spif_erase_sector_nb(handle, sector));
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Erase one 32 KB block, by its number, and return once erased. As spif_erase_sector().
+ *
+ * @param[in,out] handle   Handle from spif_init().
+ * @param[in]     block32  Block number, SPIF_ADDRESS_TO_BLOCK32() of an address in it.
+ * @return SPIF_ERR_NONE once erased, or the SPIF_ERR_ value that says what went
+ *         wrong. SPIF_ERR_INVALID on a chip whose sectors are bigger than 32 KB.
+ */
+spif_err_t spif_erase_block32(spif_t *handle, uint32_t block32)
+{
+    return spif_wait_started(handle, spif_erase_block32_nb(handle, block32));
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Erase one 64 KB block, by its number, and return once erased. As spif_erase_sector().
+ *
+ * @param[in,out] handle  Handle from spif_init().
+ * @param[in]     block   Block number, SPIF_ADDRESS_TO_BLOCK() of an address in it.
+ * @return SPIF_ERR_NONE once erased, or the SPIF_ERR_ value that says what went
+ *         wrong. SPIF_ERR_INVALID on a chip whose sectors are bigger than 64 KB.
+ */
+spif_err_t spif_erase_block(spif_t *handle, uint32_t block)
+{
+    return spif_wait_started(handle, spif_erase_block_nb(handle, block));
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Erase the whole chip, and return once it is erased. As spif_erase_sector().
+ *
+ * A 16 MB chip can take up to 200 s, and without an RTOS nothing else runs
+ * meanwhile, so code with more to do starts it with spif_erase_chip_nb().
+ *
+ * @param[in,out] handle  Handle from spif_init().
+ * @return SPIF_ERR_NONE once erased, or the SPIF_ERR_ value that says what went wrong.
+ */
+spif_err_t spif_erase_chip(spif_t *handle)
+{
+    return spif_wait_started(handle, spif_erase_chip_nb(handle));
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Read the chip's 64 bit unique ID, set at the factory. Not from an interrupt.
+ *
+ * Each maker gives it its own way. Winbond, GigaDevice, ISSI, Puya, XMC, Zbit,
+ * Boya, Adesto AT25SF and AT25DF, Spansion and SST26 are known. Macronix and
+ * Micron have no such ID, and other makers are not known.
+ *
+ * @param[in,out] handle  Handle from spif_init().
+ * @param[out]    id      SPIF_UNIQUE_ID_SIZE bytes for the ID.
+ * @return SPIF_ERR_NONE, or the SPIF_ERR_ value that says what went wrong.
+ *         SPIF_ERR_INVALID for a chip without a known ID.
+ */
+spif_err_t spif_unique_id(spif_t *handle, uint8_t *id)
+{
+    spif_err_t err           = SPIF_ERR_INVALID;
+    osal_err_t lock          = OSAL_ERR_NONE;
+    uint8_t    command       = 0U;
+    uint32_t   address       = 0U;
+    uint8_t    address_bytes = 0U;
+    uint8_t    dummy_bytes   = 0U;
+
+    assert_param(handle != NULL);
+    assert_param(id != NULL);
+
+    /* Runs once. A check that fails breaks out to the one return at the end. */
+    do
+    {
+        /* A handle spif_init() did not accept has a size of 0, and a chip
+           without a known ID is refused before anything is sent. */
+        if ((handle->size == 0U) ||
+            !spif_id_command(handle, &command, &address, &address_bytes, &dummy_bytes))
+        {
+            break;
+        }
+
+        /* One job at a time. spif_process() says when the last has ended. */
+        if (handle->job_state != SPIF_JOB_IDLE)
+        {
+            err = SPIF_ERR_BUSY;
+            break;
+        }
+
+        /* One thread at a time. Without an RTOS osal takes nothing and this
+           always succeeds. */
+        lock = osal_mutex_lock(&handle->mutex, SPIF_TIMEOUT_MUTEX_MS);
+
+        if (lock == OSAL_ERR_TIMEOUT)
+        {
+            /* Another thread kept the chip for the whole wait. */
+            err = SPIF_ERR_TIMEOUT;
+            break;
+        }
+
+        if (lock != OSAL_ERR_NONE)
+        {
+            /* Refused outright, such as from an interrupt. */
+            err = SPIF_ERR_MUTEX;
+            break;
+        }
+
+        /* No break from here on: the mutex is held, and is given back below. */
+        spif_select(handle, true);
+        err = spif_command(handle, command, address, address_bytes, dummy_bytes);
+
+        if (err == SPIF_ERR_NONE)
+        {
+            err = spif_transfer(handle, id, SPIF_UNIQUE_ID_SIZE, true);
+        }
+
+        spif_select(handle, false);
+        osal_mutex_unlock(&handle->mutex);
+    }
+    while (false);
+
+    return err;
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Start reading len bytes starting at address, and return at once. Not from an interrupt.
  *
  * A job: by polling it reads the first piece, up to SPIF_POLL_CHUNK bytes, and
  * spif_process() reads each of the others, so no call keeps the caller long.
  * With DMA it returns once the read has started. spif_process() or spif_wait()
  * says when the last is in. Until then the buffer must stay where it is.
+ * spif_read() is this and spif_wait() in one call.
  *
  * @param[in,out] handle   Handle from spif_init().
  * @param[in]     address  First byte to read.
@@ -319,7 +500,7 @@ spif_err_t spif_init(spif_t *handle, SPI_HandleTypeDef *hspi, GPIO_TypeDef *cs_p
  * @param[in]     len      Bytes to read, up to the end of the chip.
  * @return SPIF_ERR_NONE once started, or the SPIF_ERR_ value that says what went wrong.
  */
-spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len)
+spif_err_t spif_read_nb(spif_t *handle, uint32_t address, uint8_t *data, size_t len)
 {
     spif_err_t err  = SPIF_ERR_INVALID;
     osal_err_t lock = OSAL_ERR_NONE;
@@ -419,12 +600,13 @@ spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len
 
 /*****************************************************************************************************/
 /**
- * @brief Start writing len bytes at address, into flash erased beforehand. Not from an interrupt.
+ * @brief Start writing len bytes at address, into flash erased beforehand, and return at once.
  *
  * A job: it returns once the first page has started, and spif_process() sends
  * each of the others once the chip has stored the one before. spif_process()
  * or spif_wait() says when the last is stored. Until then the buffer must stay
- * as it is.
+ * as it is. spif_write() is this and spif_wait() in one call. Not from an
+ * interrupt.
  *
  * @param[in,out] handle   Handle from spif_init().
  * @param[in]     address  First byte to write.
@@ -433,7 +615,7 @@ spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len
  * @return SPIF_ERR_NONE once started, or the SPIF_ERR_ value that says what
  *         went wrong. After an error, the pages before the failing one are written.
  */
-spif_err_t spif_write(spif_t *handle, uint32_t address, const uint8_t *data, size_t len)
+spif_err_t spif_write_nb(spif_t *handle, uint32_t address, const uint8_t *data, size_t len)
 {
     spif_err_t err  = SPIF_ERR_INVALID;
     osal_err_t lock = OSAL_ERR_NONE;
@@ -512,16 +694,17 @@ spif_err_t spif_write(spif_t *handle, uint32_t address, const uint8_t *data, siz
 
 /*****************************************************************************************************/
 /**
- * @brief Start erasing one sector, the smallest part the chip erases, by its number.
+ * @brief Start erasing one sector, the smallest part the chip erases, and return at once.
  *
  * A job: it returns at once, and spif_process() or spif_wait() says when it
- * has finished. Not from an interrupt.
+ * has finished. spif_erase_sector() is this and spif_wait() in one call. Not
+ * from an interrupt.
  *
  * @param[in,out] handle  Handle from spif_init().
  * @param[in]     sector  Sector number, SPIF_ADDRESS_TO_SECTOR() of an address in it.
  * @return SPIF_ERR_NONE once started, or the SPIF_ERR_ value that says what went wrong.
  */
-spif_err_t spif_erase_sector(spif_t *handle, uint32_t sector)
+spif_err_t spif_erase_sector_nb(spif_t *handle, uint32_t sector)
 {
     assert_param(handle != NULL);
 
@@ -531,14 +714,14 @@ spif_err_t spif_erase_sector(spif_t *handle, uint32_t sector)
 
 /*****************************************************************************************************/
 /**
- * @brief Start erasing one 32 KB block, by its number. A job, as spif_erase_sector().
+ * @brief Start erasing one 32 KB block, by its number. A job, as spif_erase_sector_nb().
  *
  * @param[in,out] handle   Handle from spif_init().
  * @param[in]     block32  Block number, SPIF_ADDRESS_TO_BLOCK32() of an address in it.
  * @return SPIF_ERR_NONE once started, or the SPIF_ERR_ value that says what went
  *         wrong. SPIF_ERR_INVALID on a chip whose sectors are bigger than 32 KB.
  */
-spif_err_t spif_erase_block32(spif_t *handle, uint32_t block32)
+spif_err_t spif_erase_block32_nb(spif_t *handle, uint32_t block32)
 {
     assert_param(handle != NULL);
 
@@ -548,14 +731,14 @@ spif_err_t spif_erase_block32(spif_t *handle, uint32_t block32)
 
 /*****************************************************************************************************/
 /**
- * @brief Start erasing one 64 KB block, by its number. A job, as spif_erase_sector().
+ * @brief Start erasing one 64 KB block, by its number. A job, as spif_erase_sector_nb().
  *
  * @param[in,out] handle  Handle from spif_init().
  * @param[in]     block   Block number, SPIF_ADDRESS_TO_BLOCK() of an address in it.
  * @return SPIF_ERR_NONE once started, or the SPIF_ERR_ value that says what went
  *         wrong. SPIF_ERR_INVALID on a chip whose sectors are bigger than 64 KB.
  */
-spif_err_t spif_erase_block(spif_t *handle, uint32_t block)
+spif_err_t spif_erase_block_nb(spif_t *handle, uint32_t block)
 {
     assert_param(handle != NULL);
 
@@ -565,12 +748,12 @@ spif_err_t spif_erase_block(spif_t *handle, uint32_t block)
 
 /*****************************************************************************************************/
 /**
- * @brief Start erasing the whole chip. A job, as spif_erase_sector().
+ * @brief Start erasing the whole chip. A job, as spif_erase_sector_nb().
  *
  * @param[in,out] handle  Handle from spif_init().
  * @return SPIF_ERR_NONE once started, or the SPIF_ERR_ value that says what went wrong.
  */
-spif_err_t spif_erase_chip(spif_t *handle)
+spif_err_t spif_erase_chip_nb(spif_t *handle)
 {
     uint32_t wait = HAL_MAX_DELAY;
 
@@ -584,84 +767,6 @@ spif_err_t spif_erase_chip(spif_t *handle)
 #endif
 
     return spif_erase(handle, SPIF_CMD_ERASE_CHIP, 0U, 0U, wait);
-}
-
-/*****************************************************************************************************/
-/**
- * @brief Read the chip's 64 bit unique ID, set at the factory. Not from an interrupt.
- *
- * Each maker gives it its own way. Winbond, GigaDevice, ISSI, Puya, XMC, Zbit,
- * Boya, Adesto AT25SF and AT25DF, Spansion and SST26 are known. Macronix and
- * Micron have no such ID, and other makers are not known.
- *
- * @param[in,out] handle  Handle from spif_init().
- * @param[out]    id      SPIF_UNIQUE_ID_SIZE bytes for the ID.
- * @return SPIF_ERR_NONE, or the SPIF_ERR_ value that says what went wrong.
- *         SPIF_ERR_INVALID for a chip without a known ID.
- */
-spif_err_t spif_unique_id(spif_t *handle, uint8_t *id)
-{
-    spif_err_t err           = SPIF_ERR_INVALID;
-    osal_err_t lock          = OSAL_ERR_NONE;
-    uint8_t    command       = 0U;
-    uint32_t   address       = 0U;
-    uint8_t    address_bytes = 0U;
-    uint8_t    dummy_bytes   = 0U;
-
-    assert_param(handle != NULL);
-    assert_param(id != NULL);
-
-    /* Runs once. A check that fails breaks out to the one return at the end. */
-    do
-    {
-        /* A handle spif_init() did not accept has a size of 0, and a chip
-           without a known ID is refused before anything is sent. */
-        if ((handle->size == 0U) ||
-            !spif_id_command(handle, &command, &address, &address_bytes, &dummy_bytes))
-        {
-            break;
-        }
-
-        /* One job at a time. spif_process() says when the last has ended. */
-        if (handle->job_state != SPIF_JOB_IDLE)
-        {
-            err = SPIF_ERR_BUSY;
-            break;
-        }
-
-        /* One thread at a time. Without an RTOS osal takes nothing and this
-           always succeeds. */
-        lock = osal_mutex_lock(&handle->mutex, SPIF_TIMEOUT_MUTEX_MS);
-
-        if (lock == OSAL_ERR_TIMEOUT)
-        {
-            /* Another thread kept the chip for the whole wait. */
-            err = SPIF_ERR_TIMEOUT;
-            break;
-        }
-
-        if (lock != OSAL_ERR_NONE)
-        {
-            /* Refused outright, such as from an interrupt. */
-            err = SPIF_ERR_MUTEX;
-            break;
-        }
-
-        /* No break from here on: the mutex is held, and is given back below. */
-        spif_select(handle, true);
-        err = spif_command(handle, command, address, address_bytes, dummy_bytes);
-
-        if (err == SPIF_ERR_NONE)
-        {
-            err = spif_transfer(handle, id, SPIF_UNIQUE_ID_SIZE, true);
-        }
-
-        spif_select(handle, false);
-        osal_mutex_unlock(&handle->mutex);
-    }
-    while (false);
-
-    return err;
 }
 
 /*****************************************************************************************************/
@@ -1153,6 +1258,30 @@ static void spif_job_end(spif_t *handle, spif_err_t err)
 #endif
 
     osal_mutex_unlock(&handle->mutex);
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Wait for the job a call has just started, or pass on why it did not start.
+ *
+ * Only a call that started a job has one to wait for. One refused because a
+ * job was already running started nothing, and waiting would finish that job
+ * and report how it ended, as if it were this one.
+ *
+ * @param[in,out] handle  Handle from spif_init().
+ * @param[in]     err     What the call that starts the job returned.
+ * @return How the job ended, or err when none started.
+ */
+static spif_err_t spif_wait_started(spif_t *handle, spif_err_t err)
+{
+    spif_err_t result = err;
+
+    if (result == SPIF_ERR_NONE)
+    {
+        result = spif_wait(handle);
+    }
+
+    return result;
 }
 
 /*****************************************************************************************************/

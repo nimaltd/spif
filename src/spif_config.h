@@ -30,9 +30,10 @@
 
 /* USER CODE BEGIN SPIF_CONFIGURATION */
 
-/* How spif_read() and spif_write() move their data. Either way each is a job:
-   it returns once started, and spif_process() or spif_wait() says when it has
-   finished. One of:
+/* How reads and writes move their data. Either way spif_read_nb() and
+   spif_write_nb() return once started, and spif_process() or spif_wait()
+   says when the job has finished. spif_read() and spif_write() wait for it.
+   One of:
      SPIF_TRANSFER_POLLING  the CPU moves it, a piece per call
      SPIF_TRANSFER_DMA      the DMA moves it, and the CPU is free meanwhile
    With DMA, give the SPI a DMA channel for TX and one for RX in CubeMX, and
@@ -40,8 +41,8 @@
 #define SPIF_TRANSFER                   SPIF_TRANSFER_POLLING
 
 /* By polling, the most one call reads, in bytes, from 1 to 32768. A read is a
-   job: spif_read() reads the first piece and each spif_process() the next, so
-   no call keeps your code longer than one piece takes. 4 KB take 1.6 ms at
+   job: spif_read_nb() reads the first piece and each spif_process() the next,
+   so no call keeps your code longer than one piece takes. 4 KB take 1.6 ms at
    21 MHz. Bigger is a little faster in all, since each piece sends its read
    command again, 5 or 6 bytes. Not used with DMA. */
 #define SPIF_POLL_CHUNK                 4096U

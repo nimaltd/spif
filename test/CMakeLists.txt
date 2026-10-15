@@ -65,9 +65,10 @@ target_compile_features(spif_forever PUBLIC c_std_11)
 add_executable(test_spif_forever test_spif.c)
 target_link_libraries(test_spif_forever PRIVATE spif_forever unity)
 
-# No RTOS, by polling with spif_config.h as it ships, and by DMA. spif_wait()
-# then takes the next step at once instead of sleeping, and the fake HAL moves
-# the clock on a microsecond for each question, as a real CPU spends it.
+# No RTOS, by polling with spif_config.h as it ships, and by DMA. spif_wait(),
+# and the calls that wait through it, then take the next step at once instead
+# of sleeping, and the fake HAL moves the clock on a microsecond for each
+# question, as a real CPU spends it.
 add_library(spif_bare STATIC ${PROJECT_SOURCE_DIR}/src/spif.c)
 target_include_directories(spif_bare PUBLIC
     ${PROJECT_SOURCE_DIR}/src

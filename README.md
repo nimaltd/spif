@@ -21,16 +21,17 @@ Read or write any number of bytes at any address, and erase by sector, block or 
   handled the way its datasheet says
 - Erase a sector, a 32 KB or 64 KB block, or the whole chip. A chip without one
   of those sizes has it done in smaller pieces, or refused, never erased wrong
-- Writes and erases that return at once, so a state machine can do other work
-  and ask `spif_process()` later, or call `spif_wait()` to wait for them
+- Two ways to call it: `spif_read()`, `spif_write()` and the erases return
+  once done, and their `_nb` forms return at once, so a state machine can do
+  other work and move the job on with `spif_process()`
 - Polling or DMA for the data, chosen once in `spif_config.h`
 - Write protection found at start up, and SST26 and AT25DF, which lock
   themselves at power up, unlocked
 - The chip's 64 bit unique ID, read each maker's way, for a serial number or a key
 - Every timeout set once in `spif_config.h`, from the datasheet plus half
-- Writes and erases wait only as long as the chip needs: `spif_wait()` asks it
-  every millisecond with an RTOS, so your other threads run meanwhile, and
-  again at once without one
+- Writes and erases wait only as long as the chip needs, by asking it: every
+  millisecond with an RTOS, so your other threads run meanwhile, and again at
+  once without one
 - FreeRTOS, through CMSIS-RTOS v1 or v2, and ThreadX, by way of
   [osal](https://github.com/nimaltd/osal): a mutex per chip
 - A read or write past the end of the chip is refused, never wrapped round to
@@ -164,7 +165,7 @@ spif's settings are in `spif_config.h`, between its `USER CODE` lines.
 | `SPIF_TRANSFER_POLLING` | Moves its data with the CPU, a piece per call. The default |
 | `SPIF_TRANSFER_DMA` | Moves its data by DMA, and the CPU is free while it does |
 
-Either way a read, a write or an erase is a job, and your code goes on while it runs. Commands and status reads always go by polling: a few bytes take less time than a DMA takes to start. Only the code for the setting you pick is compiled in.
+Either way the `_nb` calls return at once, and your code goes on while the job runs. Commands and status reads always go by polling: a few bytes take less time than a DMA takes to start. Only the code for the setting you pick is compiled in.
 
 ### How much a read moves in one call, by polling
 
@@ -172,9 +173,9 @@ Either way a read, a write or an erase is a job, and your code goes on while it 
 #define SPIF_POLL_CHUNK                 4096U
 ```
 
-By polling the CPU moves every byte, so a long read would keep your code waiting for all of it: 64 KB is about 25 ms at 21 MHz. So `spif_read()` reads the first piece of at most `SPIF_POLL_CHUNK` bytes, and each `spif_process()` the next. With 4 KB no call takes longer than 1.6 ms at 21 MHz.
+By polling the CPU moves every byte, so a long read would keep your code waiting for all of it: 64 KB is about 25 ms at 21 MHz. So `spif_read_nb()` reads the first piece of at most `SPIF_POLL_CHUNK` bytes, and each `spif_process()` the next. With 4 KB no call takes longer than 1.6 ms at 21 MHz. `spif_read()` reads them one after the other.
 
-Bigger pieces are a little faster in all, since each piece sends its read command again, 5 or 6 bytes, and lets the chip go after it, so the bus is free for other devices between calls. Smaller ones keep each call shorter. Any value from 1 to 32768 works, and a configuration file from before this setting gets 4096. A read no longer than one piece is done when `spif_read()` returns. With DMA the setting is not used.
+Bigger pieces are a little faster in all, since each piece sends its read command again, 5 or 6 bytes, and lets the chip go after it, so the bus is free for other devices between calls. Smaller ones keep each call shorter. Any value from 1 to 32768 works, and a configuration file from before this setting gets 4096. A read no longer than one piece is done when `spif_read_nb()` returns. With DMA the setting is not used.
 
 ### Timeouts
 
@@ -235,11 +236,8 @@ int main(void)
         uint8_t data[64] = "Hello, flash";
 
         spif_erase_sector(&flash, 0);
-        spif_wait(&flash);
         spif_write(&flash, 0, data, sizeof(data));
-        spif_wait(&flash);
         spif_read(&flash, 0, data, sizeof(data));
-        spif_wait(&flash);
     }
 
     while (1)
@@ -250,7 +248,7 @@ int main(void)
 
 `flash.size` then holds the size of the chip in bytes, `flash.sector_size` the size of a sector, and `flash.manufacturer` its maker, one of the `SPIF_MANUFACTURER_` values.
 
-A read, a write or an erase only starts the job and returns at once, so `spif_wait()` waits for it, as [below](#jobs-spif_process-and-spif_wait). It returns how the job ended: `SPIF_ERR_NONE` when it worked, which is 0. So check for it by name: `if (spif_wait(...))` would mean "if it failed".
+`spif_read()`, `spif_write()` and the erases return once done, and say how it went: `SPIF_ERR_NONE` when it worked, which is 0. So check for it by name: `if (spif_write(...))` would mean "if it failed". To get on with other work while the chip erases or writes, use the `_nb` calls, as [below](#jobs-the-_nb-calls-spif_process-and-spif_wait).
 
 ### Erase before you write
 
@@ -260,20 +258,19 @@ The erase functions take a number, not an address, and macros turn one into the 
 
 ```c
 spif_erase_sector(&flash, SPIF_ADDRESS_TO_SECTOR(&flash, 0x12345));  /* sector 0x12, 0x12000 to 0x12FFF */
-spif_wait(&flash);
 spif_erase_block(&flash, SPIF_ADDRESS_TO_BLOCK(0x12345));            /* block 1, 0x10000 to 0x1FFFF   */
-spif_wait(&flash);
 spif_write(&flash, SPIF_SECTOR_TO_ADDRESS(&flash, 0x12), data, 16);  /* at 0x12000                    */
-spif_wait(&flash);
 ```
 
 A sector is 4 KB on nearly every chip, and 64 KB or 256 KB on a Spansion FL-S or an old M25P, so the two sector macros take the handle and use its `sector_size`. On a chip with 256 KB sectors the same address is in sector 0.
 
 To change a few bytes and keep the rest of a sector, read the sector into RAM, change it there, erase the sector and write it back. That needs a sector of RAM and wears the sector a little each time, which is why a file system is the usual answer.
 
-### Jobs: spif_process() and spif_wait()
+### Jobs: the _nb calls, spif_process() and spif_wait()
 
-A read, a write or an erase is a job: the call starts it and returns at once. Erasing a 16 MB chip can take minutes, a sector tens of milliseconds, and the chip does it by itself, so the CPU is yours meanwhile. A read by polling moves one piece of `SPIF_POLL_CHUNK` bytes per call; with DMA it moves by itself. Two calls follow a job:
+`spif_erase_sector()` returns once the sector is erased, tens of milliseconds as a rule, and `spif_erase_chip()` once the whole chip is, which takes up to 200 s on a 16 MB chip. With an RTOS your other threads run meanwhile. Without one your code does nothing else for those 200 s, and that is what the `_nb` calls are for.
+
+`spif_read_nb()`, `spif_write_nb()`, `spif_erase_sector_nb()`, `spif_erase_block32_nb()`, `spif_erase_block_nb()` and `spif_erase_chip_nb()` start a job: the call starts it and returns at once. The chip erases or stores a page by itself, so the CPU is yours meanwhile. A read by polling moves one piece of `SPIF_POLL_CHUNK` bytes per call; with DMA it moves by itself. Two calls follow a job:
 
 - `spif_process()` moves the job one step and returns: `true` while it runs. A write goes a page at a time, and an erase in pieces on some chips, so each call sends the next page or piece once the chip has finished the one before. A read by polling reads its next piece. Call it from a state machine or the main loop.
 - `spif_wait()` calls `spif_process()` until the job has ended, and returns how it ended. With an RTOS it sleeps a millisecond at a time through osal while the chip or the DMA has the job, so other threads run. Without one nothing else could run meanwhile, so it takes the next step at once and the job ends as soon as it can. The pieces of a read by polling it reads one after the other either way. Called once `spif_process()` has said `false`, it returns at once.
@@ -281,7 +278,7 @@ A read, a write or an erase is a job: the call starts it and returns at once. Er
 ```c
 /* In a state machine: start the erase, and come back to it. */
 case STATE_ERASE:
-    spif_erase_chip(&flash);
+    spif_erase_chip_nb(&flash);
     state = STATE_ERASING;
     break;
 
@@ -295,18 +292,7 @@ case STATE_ERASING:
 
 The next page of a write, and the next piece of an erase or of a read by polling, goes only when `spif_process()` or `spif_wait()` asks. So a state machine that comes back every 10 ms writes one page every 10 ms: 4 KB, 16 pages, then takes 160 ms instead of about 8. Come back every millisecond, or less, and a job runs as fast as the chip allows.
 
-```c
-/* Or simply, one step after the other. */
-spif_erase_sector(&flash, 3);
-
-if (spif_wait(&flash) == SPIF_ERR_NONE)
-{
-    spif_write(&flash, SPIF_SECTOR_TO_ADDRESS(&flash, 3), data, sizeof(data));
-    err = spif_wait(&flash);
-}
-```
-
-`spif_wait()` also reports a call that was refused at once, past the end of the chip for one, so simple code needs only it. Until a job has ended, its buffer must stay where it is and unchanged, and any other spif call on that chip returns `SPIF_ERR_BUSY`. Each step of a job keeps to its own time from `spif_config.h`, and a step that takes longer ends the job with `SPIF_ERR_TIMEOUT`.
+`spif_wait()` also reports a `_nb` call that was refused at once, past the end of the chip for one. Until a job has ended, its buffer must stay where it is and unchanged, and any other spif call on that chip returns `SPIF_ERR_BUSY`, the calls that wait included. Each step of a job keeps to its own time from `spif_config.h`, and a step that takes longer ends the job with `SPIF_ERR_TIMEOUT`.
 
 ### DMA
 
@@ -383,7 +369,7 @@ lfs_file_close(&lfs, &file);
 
 The file is stored when `lfs_file_close()` returns. Cut the power before that, and the old count is still there, never a half written one.
 
-The whole chip is the file system, one block a sector. Each step waits until the chip has done it, by polling or by DMA alike. A step spif refuses, because a job you started is still running, fails rather than being skipped, so finish your own jobs with `spif_wait()` before using the file system.
+The whole chip is the file system, one block a sector. Each step waits until the chip has done it, by polling or by DMA alike. A step spif refuses, because a job you started with a `_nb` call is still running, fails rather than being skipped, so finish your own jobs with `spif_wait()` before using the file system.
 
 **What it costs.** littlefs is 13.8 KB of flash on a Cortex-M4 at `-Os`, with its messages and asserts off as `lfs_defines.h` ships it, and the port 283 bytes. In RAM, `spif_lfs_t` is 616 bytes, most of it littlefs's two caches, `lfs_t` 128, and each open file 84 plus a 256 byte cache, which `lfs_file_open()` takes from the heap. Give it one with `lfs_file_opencfg()` instead to keep littlefs off the heap.
 
@@ -412,7 +398,7 @@ A Micron or a Spansion FL-S reports a refused write or erase, and spif returns `
 
 ### With an RTOS
 
-Set `OSAL_RTOS` in your `osal_config.h` and each chip gets its own mutex, created by `spif_init()`. A call that finds another thread using the chip waits for it, up to `SPIF_TIMEOUT_MUTEX_MS`. While a write or an erase waits for the chip, `spif_wait()` sleeps and your other threads run.
+Set `OSAL_RTOS` in your `osal_config.h` and each chip gets its own mutex, created by `spif_init()`. A call that finds another thread using the chip waits for it, up to `SPIF_TIMEOUT_MUTEX_MS`. While a write or an erase waits for the chip, the calls that wait and `spif_wait()` sleep, and your other threads run.
 
 Start the RTOS first. With one set, call every spif function from a thread, `spif_init()` included, and never from `main()` before the kernel starts: the mutex and the sleeps need a running RTOS.
 
@@ -446,14 +432,20 @@ A common trap is USB mass storage: CubeMX's USB device library calls `STORAGE_Re
 | Function | What it does |
 |---|---|
 | `spif_err_t spif_init(spif_t *handle, SPI_HandleTypeDef *hspi, GPIO_TypeDef *cs_port, uint16_t cs_pin)` | Set up a handle for one chip, find the chip and read its size. Call it once per handle |
-| `spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len)` | Start reading `len` bytes from `address`, as a job |
-| `spif_err_t spif_write(spif_t *handle, uint32_t address, const uint8_t *data, size_t len)` | Start writing `len` bytes to `address`, erased beforehand, as a job |
-| `spif_err_t spif_erase_sector(spif_t *handle, uint32_t sector)` | Start erasing sector number `sector`, `sector_size` bytes, as a job |
-| `spif_err_t spif_erase_block32(spif_t *handle, uint32_t block32)` | Start erasing 32 KB block number `block32`, as a job |
-| `spif_err_t spif_erase_block(spif_t *handle, uint32_t block)` | Start erasing 64 KB block number `block`, as a job |
-| `spif_err_t spif_erase_chip(spif_t *handle)` | Start erasing the whole chip, as a job |
+| `spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len)` | Read `len` bytes from `address`, and return once they are in |
+| `spif_err_t spif_write(spif_t *handle, uint32_t address, const uint8_t *data, size_t len)` | Write `len` bytes to `address`, erased beforehand, and return once stored |
+| `spif_err_t spif_erase_sector(spif_t *handle, uint32_t sector)` | Erase sector number `sector`, `sector_size` bytes, and return once erased |
+| `spif_err_t spif_erase_block32(spif_t *handle, uint32_t block32)` | Erase 32 KB block number `block32`, and return once erased |
+| `spif_err_t spif_erase_block(spif_t *handle, uint32_t block)` | Erase 64 KB block number `block`, and return once erased |
+| `spif_err_t spif_erase_chip(spif_t *handle)` | Erase the whole chip, and return once erased |
 | `spif_err_t spif_unique_id(spif_t *handle, uint8_t *id)` | Read the chip's 64 bit unique ID into `SPIF_UNIQUE_ID_SIZE` bytes |
-| `bool spif_process(spif_t *handle)` | Whether a job still runs. Checks once, moves it on, and returns at once |
+| `spif_err_t spif_read_nb(spif_t *handle, uint32_t address, uint8_t *data, size_t len)` | Start reading `len` bytes from `address`, as a job, and return at once |
+| `spif_err_t spif_write_nb(spif_t *handle, uint32_t address, const uint8_t *data, size_t len)` | Start writing `len` bytes to `address`, erased beforehand, as a job |
+| `spif_err_t spif_erase_sector_nb(spif_t *handle, uint32_t sector)` | Start erasing sector number `sector`, as a job |
+| `spif_err_t spif_erase_block32_nb(spif_t *handle, uint32_t block32)` | Start erasing 32 KB block number `block32`, as a job |
+| `spif_err_t spif_erase_block_nb(spif_t *handle, uint32_t block)` | Start erasing 64 KB block number `block`, as a job |
+| `spif_err_t spif_erase_chip_nb(spif_t *handle)` | Start erasing the whole chip, as a job |
+| `bool spif_process(spif_t *handle)` | Move the job one step, and return at once: `true` while it runs |
 | `spif_err_t spif_wait(spif_t *handle)` | Wait until the job has ended, and return how it ended |
 
 With the littlefs option, `spif_lfs.h` adds one more:
@@ -477,7 +469,7 @@ To go from one unit to another, go through the address: the first page of sector
 
 | Error | Means |
 |---|---|
-| `SPIF_ERR_NONE` | Done, or for a job, started |
+| `SPIF_ERR_NONE` | Done, or from a `_nb` call, started |
 | `SPIF_ERR_INVALID` | A handle `spif_init()` did not accept, an erase smaller than the chip's sector, or a unique ID on a chip without one |
 | `SPIF_ERR_RANGE` | `address + len` runs past the end of the chip, or a sector or block number past the last. Nothing was sent |
 | `SPIF_ERR_SPI` | The SPI transfer failed. With DMA, also a DMA error |
@@ -505,7 +497,7 @@ One command does everything:
 python test/run_tests.py
 ```
 
-It configures, builds and runs the suite five times, then tells you plainly whether it passed: by polling and by DMA, with `spif_config.h`'s times, then with the sector and chip erase times `HAL_MAX_DELAY`, then with no RTOS, by polling and by DMA, where `spif_wait()` must never sleep. The tests that keep the chip busy for minutes run only in the builds with an RTOS: without one the wait asks the chip again at once, so they would take minutes to run, and the time each step gets is the same either way. The LittleFS port has a suite of its own, built without `LFS_THREADSAFE` and with it: the real littlefs runs on a fake spif that finishes each job only when `spif_wait()` is called, so a port that skipped a wait would find nothing read and nothing written. littlefs is vendored into `test/littlefs/` for it, at v2.11.3. osal is replaced by a fake the tests control, so a mutex held by another thread, or refused by the RTOS, is tested with no RTOS at all. The RTOS side itself is osal's, and osal's own tests cover it. Add `--clean` to start from an empty build folder.
+It configures, builds and runs the suite five times, then tells you plainly whether it passed: by polling and by DMA, with `spif_config.h`'s times, then with the sector and chip erase times `HAL_MAX_DELAY`, then with no RTOS, by polling and by DMA, where neither `spif_wait()` nor the calls that wait may sleep. The tests that keep the chip busy for minutes run only in the builds with an RTOS: without one the wait asks the chip again at once, so they would take minutes to run, and the time each step gets is the same either way. The LittleFS port has a suite of its own, built without `LFS_THREADSAFE` and with it: the real littlefs runs on a fake spif that has only the calls that wait, so a port that used a `_nb` call would not even link. littlefs is vendored into `test/littlefs/` for it, at v2.11.3. osal is replaced by a fake the tests control, so a mutex held by another thread, or refused by the RTOS, is tested with no RTOS at all. The RTOS side itself is osal's, and osal's own tests cover it. Add `--clean` to start from an empty build folder.
 
 If you prefer doing it by hand:
 
@@ -526,23 +518,23 @@ The CubeMX pack is replaced by stm32-installer, every name changed, reading and 
 | `SPIF_HandleTypeDef` | `spif_t` |
 | `SPIF_Init(&h, &hspi1, gpio, pin)` | `spif_init(&h, &hspi1, gpio, pin)` |
 | `SPIF_ReadAddress(&h, address, data, size)` | `spif_read(&h, address, data, size)` |
-| `SPIF_WriteAddress(&h, address, data, size)` | `spif_write(&h, address, data, size)`, then `spif_wait(&h)` |
+| `SPIF_WriteAddress(&h, address, data, size)` | `spif_write(&h, address, data, size)` |
 | `SPIF_ReadPage(&h, page, data, size, offset)` | `spif_read(&h, SPIF_PAGE_TO_ADDRESS(page) + offset, data, size)` |
 | `SPIF_WritePage(&h, page, data, size, offset)` | `spif_write(&h, SPIF_PAGE_TO_ADDRESS(page) + offset, data, size)` |
 | `SPIF_ReadSector`, `SPIF_WriteSector` | the same with `SPIF_SECTOR_TO_ADDRESS(&h, sector)` |
 | `SPIF_ReadBlock`, `SPIF_WriteBlock` | the same with `SPIF_BLOCK_TO_ADDRESS(block)` |
-| `SPIF_EraseSector(&h, sector)` | `spif_erase_sector(&h, sector)`, then `spif_wait(&h)` |
-| `SPIF_EraseBlock(&h, block)` | `spif_erase_block(&h, block)`, then `spif_wait(&h)` |
-| `SPIF_EraseChip(&h)` | `spif_erase_chip(&h)`, then `spif_wait(&h)` |
+| `SPIF_EraseSector(&h, sector)` | `spif_erase_sector(&h, sector)` |
+| `SPIF_EraseBlock(&h, block)` | `spif_erase_block(&h, block)` |
+| `SPIF_EraseChip(&h)` | `spif_erase_chip(&h)` |
 | `SPIF_PageToAddress()`, `SPIF_AddressToSector()` and the others | `SPIF_PAGE_TO_ADDRESS()`, `SPIF_ADDRESS_TO_SECTOR(&h, ...)` and the others, [listed above](#-api). Unit to unit goes through the address |
 | `NimaLTD.I-CUBE-SPIF_conf.h` | `spif_config.h`, and `osal_config.h` from [osal](https://github.com/nimaltd/osal) |
 | `SPIF_PLATFORM_HAL` | `SPIF_TRANSFER_POLLING` |
-| `SPIF_PLATFORM_HAL_DMA` | `SPIF_TRANSFER_DMA`, whose reads now return at once: see [DMA](#dma) |
+| `SPIF_PLATFORM_HAL_DMA` | `SPIF_TRANSFER_DMA` |
 | `SPIF_RTOS` | `OSAL_RTOS` |
 | `SPIF_RTOS_DISABLE` | `OSAL_RTOS_NONE` |
 | `SPIF_DEBUG` | gone |
 
-The page, sector and block reads and writes used to cut a call short at the end of their page, sector or block. `spif_read()` and `spif_write()` go on for as long as `size` says. Writes and erases used to wait inside the call, and now return at once: follow each with `spif_wait()`, or with `spif_process()` from a state machine. See [Jobs](#jobs-spif_process-and-spif_wait).
+The page, sector and block reads and writes used to cut a call short at the end of their page, sector or block. `spif_read()` and `spif_write()` go on for as long as `size` says. They and the erases still return once done, as before. The `_nb` calls are new, for code that has other work to do meanwhile: see [Jobs](#jobs-the-_nb-calls-spif_process-and-spif_wait).
 
 The one to watch: the functions used to return `true` when they worked, and now return `SPIF_ERR_NONE`, which is 0. The compiler finds every renamed function for you, but not this:
 

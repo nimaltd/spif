@@ -15,13 +15,12 @@
  *              See LICENSE.md in the project root for the full license text.
  *
  * @note        Runs on a PC. The port is tested here, not spif: spif's calls
- *              land on a fake that keeps the chips in RAM. Like spif with DMA,
- *              the fake only finishes a read, a write or an erase when
- *              spif_wait() is called, so a port that forgot to wait would
- *              find nothing read and nothing written. It programs as a NOR
- *              chip does, clearing bits only, and counts anything a careful
- *              port would never do. The real littlefs runs on top, from
- *              test/littlefs, with its asserts on.
+ *              land on a fake that keeps the chips in RAM. The port uses the
+ *              calls that return once done, so the fake has only those: one
+ *              that called a _nb call or spif_wait() would not link. It
+ *              programs as a NOR chip does, clearing bits only, and counts
+ *              anything a careful port would never do. The real littlefs runs
+ *              on top, from test/littlefs, with its asserts on.
  *
  *              Built twice, without LFS_THREADSAFE and with it.
  */
@@ -61,35 +60,15 @@
 
 /*****************************************************************************************************/
 /**
- * @brief What a fake chip is doing.
- */
-typedef enum
-{
-    JOB_NONE = 0, /**< Nothing.                          */
-    JOB_READ,     /**< A read, to land at spif_wait().   */
-    JOB_WRITE,    /**< A write, to land at spif_wait().  */
-    JOB_ERASE,    /**< An erase, to land at spif_wait(). */
-
-} job_t;
-
-/*****************************************************************************************************/
-/**
  * @brief One fake chip, and what was done to it.
  */
 typedef struct
 {
-    spif_t        flash;              /**< The handle the port is given.            */
-    uint8_t       memory[CHIP_BYTES]; /**< What the chip holds.                     */
-    job_t         job;                /**< The job started and not yet waited for.  */
-    uint32_t      job_address;        /**< Where it starts.                         */
-    uint8_t       *job_read;          /**< Where a read lands.                      */
-    const uint8_t *job_write;         /**< What a write programs.                   */
-    size_t        job_len;            /**< Bytes in it.                             */
-    spif_err_t    result;             /**< What spif_wait() reports.                */
-    int           started;            /**< Jobs started.                            */
-    int           finished;           /**< Jobs spif_wait() finished.               */
-    int           waits;              /**< Calls to spif_wait().                    */
-    int           faults;             /**< Things a careful port never does.        */
+    spif_t   flash;              /**< The handle the port is given.     */
+    uint8_t  memory[CHIP_BYTES]; /**< What the chip holds.              */
+    uint32_t last_address;       /**< Where the last call started.      */
+    int      calls;              /**< Calls that reached the chip.      */
+    int      faults;             /**< Things a careful port never does. */
 
 } chip_t;
 
@@ -101,10 +80,10 @@ typedef struct
 
 static chip_t     chips[CHIPS];
 
-/* What the next spif call answers: SPIF_ERR_NONE to start the job, anything
-   else to refuse it. job_ends_with is what the job reports when it ends. */
-static spif_err_t refuse_with   = SPIF_ERR_NONE;
-static spif_err_t job_ends_with = SPIF_ERR_NONE;
+/* What the next spif call answers: SPIF_ERR_NONE to do it, anything else to
+   refuse it. ends_with is what a call that was done reports. */
+static spif_err_t refuse_with = SPIF_ERR_NONE;
+static spif_err_t ends_with   = SPIF_ERR_NONE;
 
 /* The fake osal. */
 static bool       mutex_create_fails = false;
@@ -129,7 +108,7 @@ static lfs_t      lfs;
 */
 
 static chip_t *chip_of(const spif_t *handle);
-static bool   chip_start(chip_t *chip, uint32_t address, size_t len);
+static bool   chip_reach(chip_t *chip, uint32_t address, size_t len);
 static int    file_put(lfs_t *fsys, const char *name, uint32_t value);
 static int    file_get(lfs_t *fsys, const char *name, uint32_t *value);
 
@@ -141,23 +120,23 @@ static int    file_get(lfs_t *fsys, const char *name, uint32_t *value);
 
 /*****************************************************************************************************/
 /**
- * @brief Start a fake read, which lands at spif_wait().
+ * @brief A fake read, done at once, as spif_read() returns once it is done.
  *
  * @param[in,out] handle   The chip.
  * @param[in]     address  First byte.
  * @param[out]    data     Where the bytes land.
  * @param[in]     len      Bytes.
- * @return SPIF_ERR_NONE once started, or what the test says to refuse with.
+ * @return What the test says the call ends with, or refuses it with.
  */
 spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len)
 {
     chip_t     *chip = chip_of(handle);
     spif_err_t err   = refuse_with;
 
-    if ((err == SPIF_ERR_NONE) && chip_start(chip, address, len))
+    if ((err == SPIF_ERR_NONE) && chip_reach(chip, address, len))
     {
-        chip->job      = JOB_READ;
-        chip->job_read = data;
+        (void)memcpy(data, &chip->memory[address], len);
+        err = ends_with;
     }
 
     return err;
@@ -165,23 +144,37 @@ spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len
 
 /*****************************************************************************************************/
 /**
- * @brief Start a fake write, which lands at spif_wait().
+ * @brief A fake write, done at once, as spif_write() returns once it is done.
  *
  * @param[in,out] handle   The chip.
  * @param[in]     address  First byte.
- * @param[in]     data     The bytes, which must stay as they are until then.
+ * @param[in]     data     The bytes.
  * @param[in]     len      Bytes.
- * @return SPIF_ERR_NONE once started, or what the test says to refuse with.
+ * @return What the test says the call ends with, or refuses it with.
  */
 spif_err_t spif_write(spif_t *handle, uint32_t address, const uint8_t *data, size_t len)
 {
     chip_t     *chip = chip_of(handle);
     spif_err_t err   = refuse_with;
+    size_t     i     = 0U;
 
-    if ((err == SPIF_ERR_NONE) && chip_start(chip, address, len))
+    if ((err == SPIF_ERR_NONE) && chip_reach(chip, address, len))
     {
-        chip->job       = JOB_WRITE;
-        chip->job_write = data;
+        for (i = 0U; i < len; i++)
+        {
+            uint8_t *cell = &chip->memory[address + i];
+
+            /* A NOR chip only clears bits. littlefs only programs what it
+               erased, so anything else here is a wrong address. */
+            if (*cell != 0xFFU)
+            {
+                chip->faults++;
+            }
+
+            *cell &= data[i];
+        }
+
+        err = ends_with;
     }
 
     return err;
@@ -189,72 +182,24 @@ spif_err_t spif_write(spif_t *handle, uint32_t address, const uint8_t *data, siz
 
 /*****************************************************************************************************/
 /**
- * @brief Start a fake sector erase, which lands at spif_wait().
+ * @brief A fake sector erase, done at once, as spif_erase_sector() returns once it is done.
  *
  * @param[in,out] handle  The chip.
  * @param[in]     sector  Which sector.
- * @return SPIF_ERR_NONE once started, or what the test says to refuse with.
+ * @return What the test says the call ends with, or refuses it with.
  */
 spif_err_t spif_erase_sector(spif_t *handle, uint32_t sector)
 {
     chip_t     *chip = chip_of(handle);
     spif_err_t err   = refuse_with;
 
-    if ((err == SPIF_ERR_NONE) && chip_start(chip, sector * CHIP_SECTOR, CHIP_SECTOR))
+    if ((err == SPIF_ERR_NONE) && chip_reach(chip, sector * CHIP_SECTOR, CHIP_SECTOR))
     {
-        chip->job = JOB_ERASE;
+        (void)memset(&chip->memory[sector * CHIP_SECTOR], 0xFF, CHIP_SECTOR);
+        err = ends_with;
     }
 
     return err;
-}
-
-/*****************************************************************************************************/
-/**
- * @brief Finish the job a fake call started, and report how it ended.
- *
- * @param[in,out] handle  The chip.
- * @return What the chip's result is: the job's, or with no job, the one before.
- */
-spif_err_t spif_wait(spif_t *handle)
-{
-    chip_t *chip = chip_of(handle);
-    size_t i     = 0U;
-
-    chip->waits++;
-
-    if (chip->job != JOB_NONE)
-    {
-        for (i = 0U; i < chip->job_len; i++)
-        {
-            uint8_t *cell = &chip->memory[chip->job_address + i];
-
-            if (chip->job == JOB_READ)
-            {
-                chip->job_read[i] = *cell;
-            }
-            else if (chip->job == JOB_WRITE)
-            {
-                /* A NOR chip only clears bits. littlefs only programs what it
-                   erased, so anything else here is a wrong address. */
-                if (*cell != 0xFFU)
-                {
-                    chip->faults++;
-                }
-
-                *cell &= chip->job_write[i];
-            }
-            else
-            {
-                *cell = 0xFFU;
-            }
-        }
-
-        chip->job    = JOB_NONE;
-        chip->result = job_ends_with;
-        chip->finished++;
-    }
-
-    return chip->result;
 }
 
 /*
@@ -368,7 +313,7 @@ void setUp(void)
     }
 
     refuse_with        = SPIF_ERR_NONE;
-    job_ends_with      = SPIF_ERR_NONE;
+    ends_with          = SPIF_ERR_NONE;
     mutex_create_fails = false;
     lock_answer        = OSAL_ERR_NONE;
     mutex_creates      = 0;
@@ -416,7 +361,7 @@ static void test_init_fills_in_the_config(void)
     TEST_ASSERT_EQUAL_PTR(fs.read_buffer, fs.cfg.read_buffer);
     TEST_ASSERT_EQUAL_PTR(fs.prog_buffer, fs.cfg.prog_buffer);
     TEST_ASSERT_EQUAL_PTR(fs.lookahead_buffer, fs.cfg.lookahead_buffer);
-    TEST_ASSERT_EQUAL_INT_MESSAGE(0, chips[0].started, "init touched the chip");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, chips[0].calls, "init touched the chip");
 }
 
 /*****************************************************************************************************/
@@ -528,24 +473,6 @@ static void test_a_file_is_kept_across_a_mount(void)
 
 /*****************************************************************************************************/
 /**
- * @brief Every job the port starts, it waits for, before it starts the next.
- */
-static void test_every_job_is_waited_for(void)
-{
-    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_lfs_init(&fs, &chips[0].flash));
-    TEST_ASSERT_EQUAL_INT(LFS_ERR_OK, lfs_format(&lfs, &fs.cfg));
-    TEST_ASSERT_EQUAL_INT(LFS_ERR_OK, lfs_mount(&lfs, &fs.cfg));
-    TEST_ASSERT_EQUAL_INT(LFS_ERR_OK, file_put(&lfs, "log", 7U));
-    TEST_ASSERT_EQUAL_INT(LFS_ERR_OK, lfs_unmount(&lfs));
-
-    TEST_ASSERT_GREATER_THAN_INT(0, chips[0].started);
-    TEST_ASSERT_EQUAL_INT(chips[0].started, chips[0].finished);
-    TEST_ASSERT_EQUAL_INT(JOB_NONE, chips[0].job);
-    TEST_ASSERT_EQUAL_INT_MESSAGE(0, chips[0].faults, "started a job while one was running");
-}
-
-/*****************************************************************************************************/
-/**
  * @brief Each call reaches the byte littlefs asked for: block times the sector, plus the offset.
  */
 static void test_each_call_reaches_the_right_place(void)
@@ -564,12 +491,12 @@ static void test_each_call_reaches_the_right_place(void)
 
     TEST_ASSERT_EQUAL_INT(LFS_ERR_OK, fs.cfg.erase(&fs.cfg, 3U));
     TEST_ASSERT_EQUAL_HEX8(0xFFU, chips[0].memory[(3U * CHIP_SECTOR) + 100U]);
-    TEST_ASSERT_EQUAL_UINT32(3U * CHIP_SECTOR, chips[0].job_address);
+    TEST_ASSERT_EQUAL_UINT32(3U * CHIP_SECTOR, chips[0].last_address);
 }
 
 /*****************************************************************************************************/
 /**
- * @brief A call spif refuses is an error, with no wait: that would report someone else's job.
+ * @brief A call spif refuses, because the application left a _nb job running, is an error.
  */
 static void test_a_refused_call_is_an_error(void)
 {
@@ -584,12 +511,12 @@ static void test_a_refused_call_is_an_error(void)
     TEST_ASSERT_EQUAL_INT(LFS_ERR_IO, fs.cfg.read(&fs.cfg, 0U, 0U, buffer, sizeof(buffer)));
     TEST_ASSERT_EQUAL_INT(LFS_ERR_IO, fs.cfg.prog(&fs.cfg, 0U, 0U, data, sizeof(data)));
     TEST_ASSERT_EQUAL_INT(LFS_ERR_IO, fs.cfg.erase(&fs.cfg, 0U));
-    TEST_ASSERT_EQUAL_INT_MESSAGE(0, chips[0].waits, "waited for a job that never started");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, chips[0].calls, "a refused call reached the chip");
 }
 
 /*****************************************************************************************************/
 /**
- * @brief A job that starts and then fails is an error too.
+ * @brief A call that fails part way is an error too.
  */
 static void test_a_job_that_fails_is_an_error(void)
 {
@@ -598,7 +525,7 @@ static void test_a_job_that_fails_is_an_error(void)
 
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_lfs_init(&fs, &chips[0].flash));
 
-    job_ends_with = SPIF_ERR_TIMEOUT;
+    ends_with = SPIF_ERR_TIMEOUT;
 
     TEST_ASSERT_EQUAL_INT(LFS_ERR_IO, fs.cfg.read(&fs.cfg, 0U, 0U, buffer, sizeof(buffer)));
     TEST_ASSERT_EQUAL_INT(LFS_ERR_IO, fs.cfg.prog(&fs.cfg, 0U, 0U, data, sizeof(data)));
@@ -614,8 +541,7 @@ static void test_sync_has_nothing_to_do(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_lfs_init(&fs, &chips[0].flash));
 
     TEST_ASSERT_EQUAL_INT(LFS_ERR_OK, fs.cfg.sync(&fs.cfg));
-    TEST_ASSERT_EQUAL_INT(0, chips[0].started);
-    TEST_ASSERT_EQUAL_INT(0, chips[0].waits);
+    TEST_ASSERT_EQUAL_INT(0, chips[0].calls);
 }
 
 /*****************************************************************************************************/
@@ -704,7 +630,7 @@ static void test_a_lock_not_had_fails_the_call(void)
     lock_answer = OSAL_ERR_TIMEOUT;
 
     TEST_ASSERT_EQUAL_INT(LFS_ERR_IO, lfs_format(&lfs, &fs.cfg));
-    TEST_ASSERT_EQUAL_INT(0, chips[0].started);
+    TEST_ASSERT_EQUAL_INT(0, chips[0].calls);
     TEST_ASSERT_EQUAL_INT(0, unlocks);
 }
 #else
@@ -751,36 +677,28 @@ static chip_t *chip_of(const spif_t *handle)
 
 /*****************************************************************************************************/
 /**
- * @brief Start a job, unless one is running or it would leave the chip.
+ * @brief Check that a call stays on the chip, and count it.
  *
  * @param[in,out] chip     The chip.
  * @param[in]     address  First byte.
  * @param[in]     len      Bytes.
- * @return true once started.
+ * @return true when it does.
  */
-static bool chip_start(chip_t *chip, uint32_t address, size_t len)
+static bool chip_reach(chip_t *chip, uint32_t address, size_t len)
 {
-    bool started = false;
+    bool inside = ((address + len) <= CHIP_BYTES);
 
-    /* spif would refuse it with SPIF_ERR_BUSY. littlefs waits for each step,
-       so only a port that forgot to wait gets here. */
-    if (chip->job != JOB_NONE)
+    if (inside)
     {
-        chip->faults++;
-    }
-    else if ((address + len) > CHIP_BYTES)
-    {
-        chip->faults++;
+        chip->last_address = address;
+        chip->calls++;
     }
     else
     {
-        chip->job_address = address;
-        chip->job_len     = len;
-        chip->started++;
-        started = true;
+        chip->faults++;
     }
 
-    return started;
+    return inside;
 }
 
 /*****************************************************************************************************/
@@ -864,7 +782,6 @@ int main(void)
     RUN_TEST(test_a_null_pointer_is_stopped);
     RUN_TEST(test_a_blank_chip_mounts_as_corrupt);
     RUN_TEST(test_a_file_is_kept_across_a_mount);
-    RUN_TEST(test_every_job_is_waited_for);
     RUN_TEST(test_each_call_reaches_the_right_place);
     RUN_TEST(test_a_refused_call_is_an_error);
     RUN_TEST(test_a_job_that_fails_is_an_error);

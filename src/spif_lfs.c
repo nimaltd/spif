@@ -55,7 +55,7 @@ static int spif_lfs_sync(const struct lfs_config *c);
 static int spif_lfs_lock(const struct lfs_config *c);
 static int spif_lfs_unlock(const struct lfs_config *c);
 #endif
-static int spif_lfs_finish(spif_t *flash, spif_err_t err);
+static int spif_lfs_error(spif_err_t err);
 
 /*
  * ****************************************************************************************************
@@ -166,8 +166,7 @@ static int spif_lfs_read(const struct lfs_config *c, lfs_block_t block, lfs_off_
     spif_lfs_t *handle = (spif_lfs_t *)c->context;
     uint32_t   address = (block * c->block_size) + off;
 
-    return spif_lfs_finish(handle->flash,
-                           spif_read(handle->flash, address, (uint8_t *)buffer, size));
+    return spif_lfs_error(spif_read(handle->flash, address, (uint8_t *)buffer, size));
 }
 
 /*****************************************************************************************************/
@@ -187,8 +186,7 @@ static int spif_lfs_prog(const struct lfs_config *c, lfs_block_t block, lfs_off_
     spif_lfs_t *handle = (spif_lfs_t *)c->context;
     uint32_t   address = (block * c->block_size) + off;
 
-    return spif_lfs_finish(handle->flash,
-                           spif_write(handle->flash, address, (const uint8_t *)buffer, size));
+    return spif_lfs_error(spif_write(handle->flash, address, (const uint8_t *)buffer, size));
 }
 
 /*****************************************************************************************************/
@@ -204,7 +202,7 @@ static int spif_lfs_erase(const struct lfs_config *c, lfs_block_t block)
     spif_lfs_t *handle = (spif_lfs_t *)c->context;
 
     /* A block is one sector, so the numbers are the same. */
-    return spif_lfs_finish(handle->flash, spif_erase_sector(handle->flash, block));
+    return spif_lfs_error(spif_erase_sector(handle->flash, block));
 }
 
 /*****************************************************************************************************/
@@ -260,25 +258,16 @@ static int spif_lfs_unlock(const struct lfs_config *c)
 
 /*****************************************************************************************************/
 /**
- * @brief Wait for the job a spif call started, and turn how it ended into a littlefs error.
+ * @brief Turn how a spif call ended into a littlefs error.
  *
- * @param[in,out] flash  The chip.
- * @param[in]     err    What the spif call returned.
- * @return LFS_ERR_OK when the job started and ended well, otherwise LFS_ERR_IO.
+ * Each call waits for its job to end, so littlefs only ever meets a job the
+ * application started with a _nb call and left running, which spif refuses
+ * with SPIF_ERR_BUSY.
+ *
+ * @param[in] err  What the spif call returned.
+ * @return LFS_ERR_OK when it worked, otherwise LFS_ERR_IO.
  */
-static int spif_lfs_finish(spif_t *flash, spif_err_t err)
+static int spif_lfs_error(spif_err_t err)
 {
-    spif_err_t result = err;
-
-    /* Only a call that started a job has one to wait for. A call refused
-       because another job was running started nothing, and spif_wait() would
-       wait for that other job and report how it ended, as if it were this one.
-       littlefs waits for each step before the next, so it can only meet a job
-       the application started and left running. */
-    if (result == SPIF_ERR_NONE)
-    {
-        result = spif_wait(flash);
-    }
-
-    return (result == SPIF_ERR_NONE) ? LFS_ERR_OK : LFS_ERR_IO;
+    return (err == SPIF_ERR_NONE) ? LFS_ERR_OK : LFS_ERR_IO;
 }

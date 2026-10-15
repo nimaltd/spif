@@ -233,37 +233,37 @@ spif_err_t spif_init(spif_t *handle, SPI_HandleTypeDef *hspi, GPIO_TypeDef *cs_p
 
 /*****************************************************************************************************/
 /**
- * @brief Start reading len bytes at address, as a job.
+ * @brief Read len bytes at address, and return once they are in.
  */
 spif_err_t spif_read(spif_t *handle, uint32_t address, uint8_t *data, size_t len);
 
 /*****************************************************************************************************/
 /**
- * @brief Start writing len bytes at address, into flash erased beforehand. Returns at once.
+ * @brief Write len bytes at address, into flash erased beforehand, and return once stored.
  */
 spif_err_t spif_write(spif_t *handle, uint32_t address, const uint8_t *data, size_t len);
 
 /*****************************************************************************************************/
 /**
- * @brief Start erasing one sector, sector_size bytes, by its number. Returns at once.
+ * @brief Erase one sector, sector_size bytes, by its number, and return once erased.
  */
 spif_err_t spif_erase_sector(spif_t *handle, uint32_t sector);
 
 /*****************************************************************************************************/
 /**
- * @brief Start erasing one 32 KB block, by its number. Returns at once.
+ * @brief Erase one 32 KB block, by its number, and return once erased.
  */
 spif_err_t spif_erase_block32(spif_t *handle, uint32_t block32);
 
 /*****************************************************************************************************/
 /**
- * @brief Start erasing one 64 KB block, by its number. Returns at once.
+ * @brief Erase one 64 KB block, by its number, and return once erased.
  */
 spif_err_t spif_erase_block(spif_t *handle, uint32_t block);
 
 /*****************************************************************************************************/
 /**
- * @brief Start erasing the whole chip, which can take minutes. Returns at once.
+ * @brief Erase the whole chip, and return once erased, which can take minutes.
  */
 spif_err_t spif_erase_chip(spif_t *handle);
 
@@ -272,6 +272,42 @@ spif_err_t spif_erase_chip(spif_t *handle);
  * @brief Read the chip's 64 bit unique ID, set at the factory.
  */
 spif_err_t spif_unique_id(spif_t *handle, uint8_t *id);
+
+/*****************************************************************************************************/
+/**
+ * @brief Start reading len bytes at address, as a job. Returns at once.
+ */
+spif_err_t spif_read_nb(spif_t *handle, uint32_t address, uint8_t *data, size_t len);
+
+/*****************************************************************************************************/
+/**
+ * @brief Start writing len bytes at address, into flash erased beforehand. Returns at once.
+ */
+spif_err_t spif_write_nb(spif_t *handle, uint32_t address, const uint8_t *data, size_t len);
+
+/*****************************************************************************************************/
+/**
+ * @brief Start erasing one sector, sector_size bytes, by its number. Returns at once.
+ */
+spif_err_t spif_erase_sector_nb(spif_t *handle, uint32_t sector);
+
+/*****************************************************************************************************/
+/**
+ * @brief Start erasing one 32 KB block, by its number. Returns at once.
+ */
+spif_err_t spif_erase_block32_nb(spif_t *handle, uint32_t block32);
+
+/*****************************************************************************************************/
+/**
+ * @brief Start erasing one 64 KB block, by its number. Returns at once.
+ */
+spif_err_t spif_erase_block_nb(spif_t *handle, uint32_t block);
+
+/*****************************************************************************************************/
+/**
+ * @brief Start erasing the whole chip, which can take minutes. Returns at once.
+ */
+spif_err_t spif_erase_chip_nb(spif_t *handle);
 
 /*****************************************************************************************************/
 /**
