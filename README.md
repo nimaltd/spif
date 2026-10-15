@@ -414,7 +414,7 @@ A Micron or a Spansion FL-S reports a refused write or erase, and spif returns `
 
 ### With an RTOS
 
-Set `OSAL_RTOS` in your `osal_config.h` and each chip gets its own mutex, created by `spif_init()`. A call that finds another thread using the chip waits for it, up to `SPIF_TIMEOUT_MUTEX_MS`. Blocking, that is every call: two threads that use the same chip simply take turns. While a write or an erase waits for the chip, the calls that wait and `spif_wait()` sleep, and your other threads run.
+Set `OSAL_RTOS` in your `osal_config.h` and each chip gets its own mutex, created by `spif_init()`. A call that finds another thread using the chip waits for it, up to `SPIF_TIMEOUT_MUTEX_MS`. Blocking, that is every call: two threads that use the same chip simply take turns. While a write or an erase waits for the chip, or a transfer for the DMA, the calls that wait and `spif_wait()` sleep a tick at a time through `osal_pause()`, and your other threads run. Between the pieces of a read by polling they only yield, through `osal_yield()`: the threads of the same priority get a turn, and the read is not slowed.
 
 Start the RTOS first. With one set, call every spif function from a thread, `spif_init()` included, and never from `main()` before the kernel starts: the mutex and the sleeps need a running RTOS.
 

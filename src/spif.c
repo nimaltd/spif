@@ -29,8 +29,8 @@
  * ****************************************************************************************************
 */
 
-/* How long a sleep between questions to the chip is: with an RTOS, so other
-   threads run, and while the chip powers up, in every build. */
+/* How long init sleeps between questions to the chip, while it powers up or
+   writes a register, in every build. */
 #define SPIF_POLL_MS                1U
 
 /* A chip takes no command for a while after power up: datasheets give up to
@@ -183,7 +183,6 @@ static spif_err_t spif_erase_send(spif_t *handle, uint8_t command, uint32_t addr
 static spif_err_t spif_moved(spif_t *handle, uint32_t start);
 #endif
 static spif_err_t spif_done(spif_t *handle, uint32_t start, uint32_t timeout_ms);
-static void       spif_yield(void);
 static uint32_t   spif_size_bytes(const uint8_t *id);
 static void       spif_pick_commands(spif_t *handle, const uint8_t *id, uint32_t size);
 static spif_err_t spif_unlock(spif_t *handle);
@@ -964,10 +963,12 @@ bool spif_process(spif_t *handle)
  * @brief Wait until the running job has ended, and say how it ended. Not from an interrupt.
  *
  * Asks first, so after spif_process() has returned false, or after a call that
- * finished or was refused at once, it returns straight away. With an RTOS it
- * sleeps a millisecond through osal between steps while the chip or the DMA
- * has the job, so other threads run. Without one it takes the next step at
- * once. Call it from the thread that started the job.
+ * finished or was refused at once, it returns straight away. While the chip or
+ * the DMA has the job it pauses between steps through osal: with an RTOS a
+ * tick's sleep, so every other thread runs, and without one none, so the next
+ * step comes at once. Between the pieces of a read by polling it only yields,
+ * which gives the threads of the same priority a turn without slowing the
+ * read. Call it from the thread that started the job.
  *
  * @param[in,out] handle  Handle from spif_init().
  * @return How the last read, write or erase ended: SPIF_ERR_NONE when it worked.
@@ -980,11 +981,17 @@ spif_err_t spif_wait(spif_t *handle)
     {
 #if (SPIF_TRANSFER == SPIF_TRANSFER_POLLING)
         /* A read by polling moves a piece with every step and waits for
-           nothing, so a sleep between would only slow it down. */
-        if (handle->job_state != SPIF_JOB_READ)
+           nothing, so a pause would only slow it down. A yield gives the
+           threads of the same priority a turn between pieces instead. */
+        if (handle->job_state == SPIF_JOB_READ)
+        {
+            osal_yield();
+        }
+        else
 #endif
         {
-            spif_yield();
+            /* The chip or the DMA has the job. */
+            osal_pause();
         }
     }
 
@@ -1055,10 +1062,8 @@ static spif_err_t spif_erase(spif_t *handle, uint8_t command, uint32_t number, u
  */
 static spif_err_t spif_receive(spif_t *handle, uint8_t *data, size_t len)
 {
-    spif_err_t err = SPIF_ERR_NONE;
-
-#if (SPIF_TRANSFER == SPIF_TRANSFER_DMA)
-    size_t done = 0U;
+    spif_err_t err  = SPIF_ERR_NONE;
+    size_t     done = 0U;
 
     /* The HAL counts in 16 bits, so a long read goes in pieces. The chip goes
        on sending from where it stopped, so the next piece needs no new
@@ -1072,18 +1077,26 @@ static spif_err_t spif_receive(spif_t *handle, uint8_t *data, size_t len)
             piece = SPIF_TRANSFER_LIMIT;
         }
 
+#if (SPIF_TRANSFER == SPIF_TRANSFER_DMA)
         err = spif_hal_error(HAL_SPI_Receive_DMA(handle->hspi, &data[done], (uint16_t)piece));
 
         if (err == SPIF_ERR_NONE)
         {
             err = spif_until_moved(handle);
         }
+#else
+        err = spif_transfer(handle, &data[done], piece, true);
+
+        /* The CPU moved that piece itself. Threads of the same priority get a
+           turn before the next. */
+        if ((err == SPIF_ERR_NONE) && ((done + piece) < len))
+        {
+            osal_yield();
+        }
+#endif
 
         done += piece;
     }
-#else
-    err = spif_transfer(handle, data, len, true);
-#endif
 
     return err;
 }
@@ -1105,7 +1118,7 @@ static spif_err_t spif_until_moved(spif_t *handle)
     /* Asked after a sleep, not before: the transfer has only just started. */
     while (err == SPIF_ERR_BUSY)
     {
-        spif_yield();
+        osal_pause();
         err = spif_moved(handle, start);
     }
 
@@ -1132,7 +1145,7 @@ static spif_err_t spif_until_done(spif_t *handle, uint32_t timeout_ms)
        busy. */
     while (err == SPIF_ERR_BUSY)
     {
-        spif_yield();
+        osal_pause();
         err = spif_done(handle, start, timeout_ms);
     }
 
@@ -1755,21 +1768,6 @@ static spif_err_t spif_done(spif_t *handle, uint32_t start, uint32_t timeout_ms)
     }
 
     return err;
-}
-
-/*****************************************************************************************************/
-/**
- * @brief Let other threads run for a millisecond, with an RTOS, while the chip or the DMA works.
- *
- * Without an RTOS nothing else could run meanwhile, so it returns at once and
- * the caller asks again straight away: a sleep would only make the job end
- * later.
- */
-static void spif_yield(void)
-{
-#if (OSAL_RTOS != OSAL_RTOS_NONE)
-    osal_delay_ms(SPIF_POLL_MS);
-#endif
 }
 
 /*****************************************************************************************************/

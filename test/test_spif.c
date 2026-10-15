@@ -229,6 +229,7 @@ static int                mutex_gives        = 0;
 static int                mutex_held         = 0;
 static uint32_t           mutex_last_wait    = 0U;
 static int                sleeps             = 0;
+static int                yields             = 0;
 
 /* assert_param, as CubeMX builds it with Enable Full Assert. */
 static jmp_buf assert_return;
@@ -631,6 +632,28 @@ void osal_delay_ms(uint32_t ms)
 {
     sleeps++;
     now_us += ms * 1000U;
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Let the threads of the same priority run: counted, and no time passes.
+ */
+void osal_yield(void)
+{
+    yields++;
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief Pause a wait, as osal does: with an RTOS a sleep of one tick, 1 ms here, and without one nothing.
+ *
+ * Without an RTOS the clock moves only as the fake HAL spends it.
+ */
+void osal_pause(void)
+{
+#if (OSAL_RTOS != OSAL_RTOS_NONE)
+    osal_delay_ms(1U);
+#endif
 }
 
 /*****************************************************************************************************/
@@ -1437,6 +1460,7 @@ void test_a_read_over_64kb_goes_in_pieces(void)
     {
         memset(readback, 0, lengths[i]);
         chip.selects = 0;
+        yields       = 0;
 
         TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, read_all(5U, readback, lengths[i]));
 
@@ -1448,6 +1472,16 @@ void test_a_read_over_64kb_goes_in_pieces(void)
                                                                : (int)((lengths[i] + SPIF_POLL_CHUNK - 1U) /
                                                                        SPIF_POLL_CHUNK),
                                       chip.selects, "the read was split into the wrong commands");
+
+        /* By polling the CPU moves every piece, the HAL's 32 KB or in a job
+           SPIF_POLL_CHUNK, and the threads of the same priority get a turn
+           between two. In a job the call that starts it reads the first piece
+           and the wait's first step, which comes at once, the second, so
+           there is one yield fewer. With DMA nothing yields. */
+        TEST_ASSERT_EQUAL_INT_MESSAGE(USES_DMA ? 0
+                                               : (int)((lengths[i] + (USES_JOBS ? SPIF_POLL_CHUNK : 0x8000U) - 1U) /
+                                                       (USES_JOBS ? SPIF_POLL_CHUNK : 0x8000U)) - (USES_JOBS ? 2 : 1),
+                                      yields, "did not yield between the pieces, or yielded with DMA");
     }
 }
 
@@ -1585,6 +1619,7 @@ void test_a_write_waits_for_each_page(void)
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, write_all(0U, pattern, 1024U));
 
     TEST_ASSERT_EQUAL_INT(4, chip.programs);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, yields, "yielded while the chip stored a page");
 #if (OSAL_RTOS != OSAL_RTOS_NONE)
     TEST_ASSERT_TRUE_MESSAGE(sleeps >= 4, "a page was not waited for");
 #endif
@@ -3040,6 +3075,7 @@ static void counts_clear(void)
     mutex_held            = 0;
     mutex_last_wait       = 0U;
     sleeps                = 0;
+    yields                = 0;
 }
 
 /*****************************************************************************************************/

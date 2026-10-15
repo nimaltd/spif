@@ -22,7 +22,7 @@ provides: []
 requires:
   installer: 1.9.0    # the first that reads installer.yml
   libraries:
-    - nimaltd/osal >= 1.0.0   # the mutex and the waits, bare metal or RTOS
+    - nimaltd/osal >= 1.1.0   # the mutex, osal_pause() and osal_yield(), bare metal or RTOS
   hal: true           # HAL SPI, GPIO and the tick
   cmsis: false
   rtos: optional      # none, or FreeRTOS or ThreadX, set in osal_config.h

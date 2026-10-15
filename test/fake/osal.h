@@ -84,6 +84,18 @@ typedef struct
 
 /*****************************************************************************************************/
 /**
+ * @brief Let the threads of the same priority run.
+ */
+void osal_yield(void);
+
+/*****************************************************************************************************/
+/**
+ * @brief Pause a wait: one sleep with an RTOS, nothing without one.
+ */
+void osal_pause(void);
+
+/*****************************************************************************************************/
+/**
  * @brief Create a mutex, unless the test says it cannot be made.
  */
 osal_err_t osal_mutex_create(osal_mutex_t *mutex);

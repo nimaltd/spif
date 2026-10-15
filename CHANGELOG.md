@@ -62,7 +62,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - The RTOS is reached through [osal](https://github.com/nimaltd/osal), which the installer
   puts in with spif, and it is set once in `osal_config.h` for every library
   that uses osal. With an RTOS, every call has to come from a thread once the
-  RTOS runs, `spif_init()` included.
+  RTOS runs, `spif_init()` included. It needs osal 1.1.0 or newer: a wait
+  for the chip or the DMA calls `osal_pause()`, a tick's sleep with an RTOS
+  and none without, and a read by polling calls `osal_yield()` between its
+  pieces, so the threads of the same priority get a turn.
 - Installed with [stm32-installer](https://github.com/nimaltd/stm32-installer)
   rather than the STM32CubeMX pack. `spif_config.h` is replaced on every
   update, and the setting between its `USER CODE` lines is kept.
