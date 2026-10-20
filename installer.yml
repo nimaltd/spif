@@ -20,7 +20,7 @@ provides: []
 
 # What the project has to offer before this library works.
 requires:
-  installer: 1.9.0    # the first that reads installer.yml
+  installer: 2.1.0    # every file at its own path; an older installer stops
   libraries:
     - nimaltd/osal >= 1.1.0   # the mutex, osal_pause() and osal_yield(), bare metal or RTOS
   hal: true           # HAL SPI, GPIO and the tick
@@ -33,16 +33,15 @@ requires:
       note: full duplex master, mode 0, 8 bit, with a GPIO output for chip select
   c_standard: c11
 
-# The code keeps its src/ folder in the user's project, just as it sits here.
-install:
-  layout: mirror
+# Written for 2.1.0: every file keeps the path it has here, so src/ lands in
+# the user's project just as it sits, and headers and sources need no files
+# around them.
 
-files:
-  headers:
-    - src/spif.h
-    - src/spif_config.h     # replaced on install, its USER CODE section kept
-  sources:
-    - src/spif.c
+headers:
+  - src/spif.h
+  - src/spif_config.h     # replaced on install, its USER CODE section kept
+sources:
+  - src/spif.c
 
 # Asked about at the first install, and kept after that. --with littlefs or
 # --without littlefs changes it on any later run.
@@ -51,11 +50,10 @@ options:
     description: LittleFS file system on the flash
     libraries:
       - nimaltd/littlefs >= 2.11.0
-    files:
-      headers:
-        - src/spif_lfs.h
-      sources:
-        - src/spif_lfs.c
+    headers:
+      - src/spif_lfs.h
+    sources:
+      - src/spif_lfs.c
 
 # Copied as they are, alongside the code.
 extras:
