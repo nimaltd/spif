@@ -83,18 +83,18 @@ about the tests refers to this repository, not to an installed copy.
 
 ## ⚙️ Installing it
 
-[stm32-installer](https://github.com/nimaltd/stm32-installer) copies the library into your project and adds it to your CMake, STM32CubeIDE, Keil, IAR or Makefile project for you. Your project file is backed up first. It also checks that SPI is enabled in your CubeMX project, and says so if it is not.
+[lib-installer](https://github.com/nimaltd/lib-installer) copies the library into your project and adds it to your CMake, STM32CubeIDE, Keil, IAR or Makefile project for you. Your project file is backed up first. It also checks that SPI is enabled in your CubeMX project, and says so if it is not.
 
 Install it once per machine:
 
 ```bash
-pip install stm32-installer
+pip install lib-installer
 ```
 
 Then, from the root of your STM32 project:
 
 ```bash
-stm32-installer nimaltd/spif
+lib-installer nimaltd/spif
 ```
 
 spif waits and locks through [osal](https://github.com/nimaltd/osal), so the installer puts osal in first, and asks for its folder like any library. If another library already brought osal into your project, that copy is kept and nothing is asked.
@@ -106,19 +106,19 @@ The first install also asks whether you want the [LittleFS file system](#a-file-
 Downloaded this repository with **Code**, **Download ZIP**? Give the installer the zip in place of `nimaltd/spif`, with no need to unpack it:
 
 ```bash
-stm32-installer D:/Downloads/spif-main.zip
+lib-installer D:/Downloads/spif-main.zip
 ```
 
-Only the files the library needs are copied into your project, and the zip is left alone. An unpacked folder works the same way. On a machine with no internet, give it the osal zip as well, `stm32-installer D:/Downloads/spif-main.zip D:/Downloads/osal-main.zip`, so it does not try to fetch osal. [stm32-installer's README](https://github.com/nimaltd/stm32-installer#installing-a-library) has every option, and how to install on a machine with no internet at all.
+Only the files the library needs are copied into your project, and the zip is left alone. An unpacked folder works the same way. On a machine with no internet, give it the osal zip as well, `lib-installer D:/Downloads/spif-main.zip D:/Downloads/osal-main.zip`, so it does not try to fetch osal. [lib-installer's README](https://github.com/nimaltd/lib-installer#installing-a-library) has every option, and how to install on a machine with no internet at all.
 
 ### Updating, and pinning a version
 
-Run the same command again. The code is replaced. osal is updated only when spif needs a newer one. Your settings in `spif_config.h` and `osal_config.h`, between their `USER CODE` lines, are kept either way. This needs stm32-installer 1.9.0 or newer. An older one cannot find the library: update it with `pip install --upgrade stm32-installer`.
+Run the same command again. The code is replaced. osal is updated only when spif needs a newer one. Your settings in `spif_config.h` and `osal_config.h`, between their `USER CODE` lines, are kept either way.
 
 By default you get the newest code on `main`. To hold a project on one release, add `--ref` with a tag, a branch or a commit:
 
 ```bash
-stm32-installer nimaltd/spif --ref v3.0.0
+lib-installer nimaltd/spif --ref v3.0.0
 ```
 
 ### Or copy the files in by hand
@@ -147,7 +147,7 @@ The first `target_link_libraries` has no `PRIVATE` on purpose. CubeMX links your
 
 For LittleFS, add [littlefs](https://github.com/nimaltd/littlefs) the same way, with `add_subdirectory(littlefs)`, and set `SPIF_LITTLEFS` on before spif's line, with `set(SPIF_LITTLEFS ON)`, to build the port into spif.
 
-`stm32-installer` avoids all of this: it writes an INTERFACE target instead, whose sources compile as part of your own target and inherit everything it has.
+`lib-installer` avoids all of this: it writes an INTERFACE target instead, whose sources compile as part of your own target and inherit everything it has.
 
 ---
 
@@ -331,7 +331,7 @@ Options
   littlefs   LittleFS file system on the flash. Add it? [y/N]: y
 ```
 
-A yes installs [littlefs](https://github.com/nimaltd/littlefs) in a folder of its own, and the port, `spif_lfs.h` and `spif_lfs.c`, beside spif. Later, `stm32-installer nimaltd/spif --with littlefs` adds it, and `--without littlefs` takes the port out again.
+A yes installs [littlefs](https://github.com/nimaltd/littlefs) in a folder of its own, and the port, `spif_lfs.h` and `spif_lfs.c`, beside spif. Later, `lib-installer nimaltd/spif --with littlefs` adds it, and `--without littlefs` takes the port out again.
 
 After `spif_init()`, the port fills in everything littlefs needs to know about the chip:
 
@@ -532,7 +532,7 @@ ctest --test-dir build --output-on-failure
 
 ## ⬆️ Coming from version 2
 
-The CubeMX pack is replaced by stm32-installer, every name changed, reading and writing go by address only, and the timeouts moved into `spif_config.h`:
+The CubeMX pack is replaced by lib-installer, every name changed, reading and writing go by address only, and the timeouts moved into `spif_config.h`:
 
 | Was | Is now |
 |---|---|

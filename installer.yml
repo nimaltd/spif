@@ -1,4 +1,4 @@
-# Read by stm32-installer. See https://github.com/nimaltd/stm32-installer
+# Read by lib-installer. See https://github.com/nimaltd/lib-installer
 #
 # There is no version here. The installer reads it from the @version tag in
 # spif.h, so the source files are the only place it is written.
@@ -7,6 +7,9 @@ name: spif
 description: Driver for SPI NOR flash, W25Qxx and compatible, on the STM32 HAL
 repository: https://github.com/nimaltd/spif
 license: Apache-2.0
+
+# The projects it is installed into: STM32, made by CubeMX.
+platform: stm32
 
 # What this library is.
 # kind:     driver, middleware, rtos, protocol, filesystem, utility, bsp
@@ -20,7 +23,7 @@ provides: []
 
 # What the project has to offer before this library works.
 requires:
-  installer: 2.1.0    # every file at its own path; an older installer stops
+  lib_installer: 3.0.0 # the oldest lib-installer that reads this file
   libraries:
     - nimaltd/osal >= 1.1.0   # the mutex, osal_pause() and osal_yield(), bare metal or RTOS
   hal: true           # HAL SPI, GPIO and the tick
