@@ -83,33 +83,29 @@ about the tests refers to this repository, not to an installed copy.
 
 ## ⚙️ Installing it
 
-[lib-installer](https://github.com/nimaltd/lib-installer) copies the library into your project and adds it to your CMake, STM32CubeIDE, Keil, IAR or Makefile project for you. Your project file is backed up first. It also checks that SPI is enabled in your CubeMX project, and says so if it is not.
+[libNIMA](https://github.com/nimaltd/libNIMA) copies the library into your project and adds it to your CMake, STM32CubeIDE, Keil, IAR or Makefile project for you. Your project file is backed up first. It also checks that SPI is enabled in your CubeMX project, and says so if it is not.
 
-Install it once per machine:
-
-```bash
-pip install lib-installer
-```
+Get it once per machine from [its releases page](https://github.com/nimaltd/libNIMA/releases/latest): the installer for Windows, macOS or Linux, which puts the `libnima` command on your PATH as well.
 
 Then, from the root of your STM32 project:
 
 ```bash
-lib-installer nimaltd/spif
+libnima nimaltd/spif
 ```
 
-spif waits and locks through [osal](https://github.com/nimaltd/osal), so the installer puts osal in first, and asks for its folder like any library. If another library already brought osal into your project, that copy is kept and nothing is asked.
+spif waits and locks through [osal](https://github.com/nimaltd/osal), so libNIMA puts osal in first, and asks for its folder like any library. If another library already brought osal into your project, that copy is kept and nothing is asked.
 
 The first install also asks whether you want the [LittleFS file system](#a-file-system-littlefs). The answer is kept, so an update does not ask again.
 
 ### From a downloaded zip
 
-Downloaded this repository with **Code**, **Download ZIP**? Give the installer the zip in place of `nimaltd/spif`, with no need to unpack it:
+Downloaded this repository with **Code**, **Download ZIP**? Give libNIMA the zip in place of `nimaltd/spif`, with no need to unpack it:
 
 ```bash
-lib-installer D:/Downloads/spif-main.zip
+libnima D:/Downloads/spif-main.zip
 ```
 
-Only the files the library needs are copied into your project, and the zip is left alone. An unpacked folder works the same way. On a machine with no internet, give it the osal zip as well, `lib-installer D:/Downloads/spif-main.zip D:/Downloads/osal-main.zip`, so it does not try to fetch osal. [lib-installer's README](https://github.com/nimaltd/lib-installer#installing-a-library) has every option, and how to install on a machine with no internet at all.
+Only the files the library needs are copied into your project, and the zip is left alone. An unpacked folder works the same way. On a machine with no internet, give it the osal zip as well, `libnima D:/Downloads/spif-main.zip D:/Downloads/osal-main.zip`, so it does not try to fetch osal. [libNIMA's README](https://github.com/nimaltd/libNIMA#using-it) has every option, and how to install on a machine with no internet at all.
 
 ### Updating, and pinning a version
 
@@ -118,7 +114,7 @@ Run the same command again. The code is replaced. osal is updated only when spif
 By default you get the newest code on `main`. To hold a project on one release, add `--ref` with a tag, a branch or a commit:
 
 ```bash
-lib-installer nimaltd/spif --ref v3.0.0
+libnima nimaltd/spif --ref v3.0.0
 ```
 
 ### Or copy the files in by hand
@@ -147,7 +143,7 @@ The first `target_link_libraries` has no `PRIVATE` on purpose. CubeMX links your
 
 For LittleFS, add [littlefs](https://github.com/nimaltd/littlefs) the same way, with `add_subdirectory(littlefs)`, and set `SPIF_LITTLEFS` on before spif's line, with `set(SPIF_LITTLEFS ON)`, to build the port into spif.
 
-`lib-installer` avoids all of this: it writes an INTERFACE target instead, whose sources compile as part of your own target and inherit everything it has.
+`libnima` avoids all of this: it writes an INTERFACE target instead, whose sources compile as part of your own target and inherit everything it has.
 
 ---
 
@@ -324,14 +320,14 @@ On an F7 or H7 with the data cache on, the DMA and the CPU can see different cop
 
 ### A file system, LittleFS
 
-[LittleFS](https://github.com/littlefs-project/littlefs) is made for exactly this kind of chip: it survives a power cut part way through a write, and spreads the wear. spif comes with the port for it, as an option of the installer, which asks at the first install:
+[LittleFS](https://github.com/littlefs-project/littlefs) is made for exactly this kind of chip: it survives a power cut part way through a write, and spreads the wear. spif comes with the port for it, as an option of libNIMA, which asks at the first install:
 
 ```
 Options
   littlefs   LittleFS file system on the flash. Add it? [y/N]: y
 ```
 
-A yes installs [littlefs](https://github.com/nimaltd/littlefs) in a folder of its own, and the port, `spif_lfs.h` and `spif_lfs.c`, beside spif. Later, `lib-installer nimaltd/spif --with littlefs` adds it, and `--without littlefs` takes the port out again.
+A yes installs [littlefs](https://github.com/nimaltd/littlefs) in a folder of its own, and the port, `spif_lfs.h` and `spif_lfs.c`, beside spif. Later, `libnima nimaltd/spif --with littlefs` adds it, and `--without littlefs` takes the port out again.
 
 After `spif_init()`, the port fills in everything littlefs needs to know about the chip:
 
@@ -532,7 +528,7 @@ ctest --test-dir build --output-on-failure
 
 ## ⬆️ Coming from version 2
 
-The CubeMX pack is replaced by lib-installer, every name changed, reading and writing go by address only, and the timeouts moved into `spif_config.h`:
+The CubeMX pack is replaced by libNIMA, every name changed, reading and writing go by address only, and the timeouts moved into `spif_config.h`:
 
 | Was | Is now |
 |---|---|

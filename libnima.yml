@@ -1,6 +1,6 @@
-# Read by lib-installer. See https://github.com/nimaltd/lib-installer
+# Read by libNIMA. See https://github.com/nimaltd/libNIMA
 #
-# There is no version here. The installer reads it from the @version tag in
+# There is no version here. libNIMA reads it from the @version tag in
 # spif.h, so the source files are the only place it is written.
 
 name: spif
@@ -23,22 +23,24 @@ provides: []
 
 # What the project has to offer before this library works.
 requires:
-  lib_installer: 4.0.0 # the oldest lib-installer that reads this file
+  libnima: 1.0.0       # the oldest libNIMA that reads this file
   libraries:
     - nimaltd/osal >= 1.1.0   # the mutex, osal_pause() and osal_yield(), bare metal or RTOS
-  hal: true           # HAL SPI, GPIO and the tick
-  cmsis: false
-  rtos: optional      # none, or FreeRTOS or ThreadX, set in osal_config.h
-  hal_modules: [spi]  # must be enabled in stm32xxxx_hal_conf.h
   peripherals:
     - type: spi
       count: 1
       note: full duplex master, mode 0, 8 bit, with a GPIO output for chip select
-  c_standard: c11
 
-# Written for 2.1.0: every file keeps the path it has here, so src/ lands in
-# the user's project just as it sits, and headers and sources need no files
-# around them.
+stm32:
+  requires:
+    hal: true           # HAL SPI, GPIO and the tick
+    cmsis: false
+    rtos: optional      # none, or FreeRTOS or ThreadX, set in osal_config.h
+    hal_modules: [spi]  # must be enabled in stm32xxxx_hal_conf.h
+    c_standard: c11
+
+# Every file keeps the path it has here, so src/ lands in the user's project
+# just as it sits.
 
 headers:
   - src/spif.h
