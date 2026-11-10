@@ -3,17 +3,6 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Fixed
-
-- `spif_init()` reports `SPIF_ERR_PROTECTED` for a fourth block protect bit
-  too: BP3 on Macronix and ISSI chips, and on Micron's N25Q and MT25Q. Set
-  alone it protects half the chip, and was not seen.
-- A `_nb` call refused with `SPIF_ERR_BUSY` no longer changes what
-  `spif_wait()` reports: the job that runs, or has just ended, keeps its own
-  result.
-
 ## [3.0.0] - 2026-10-06
 
 ### Changed
@@ -155,6 +144,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Reads used the plain read command, which many chips take only up to 50 MHz.
   They use the fast read now, which every chip takes at any clock.
 - Reading 0 bytes returned failure. It now succeeds and sends nothing.
+- `spif_init()` reports `SPIF_ERR_PROTECTED` for a fourth block protect bit
+  too: BP3 on Macronix and ISSI chips, and on Micron's N25Q and MT25Q. Set
+  alone it protects half the chip, and was not seen.
+- A `_nb` call refused with `SPIF_ERR_BUSY` no longer changes what
+  `spif_wait()` reports: the job that runs, or has just ended, keeps its own
+  result.
 
 ## [2.3.2]
 
