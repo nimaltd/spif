@@ -148,7 +148,7 @@ typedef struct
     bool              mode_4byte;         /**< Switched to 4 byte addresses.                */
     bool              wel;                /**< Write enable latch.                          */
     bool              never_ready;        /**< Stays busy for ever once it starts.          */
-    uint8_t           bp;                 /**< BP0 to BP2: non zero protects the chip.      */
+    uint8_t           bp;                 /**< BP0 up, from status bit 2: non zero protects. */
     bool              locked;             /**< SST26 or AT25DF lock, set at power up.       */
     bool              locked_for_ever;    /**< SST26: a block locked for good.              */
     bool              sprl;               /**< AT25DF: the lock on the protection.          */
@@ -1111,6 +1111,47 @@ void test_esmt_is_unlocked_at_init(void)
                                                    0x16U, 0x400000UL));
     TEST_ASSERT_FALSE(chip.locked);
     TEST_ASSERT_EQUAL_INT(SPIF_ERR_INVALID, spif_unique_id(&flash, readback));
+}
+
+/*****************************************************************************************************/
+/**
+ * @brief A fourth protection bit counts on the makers that have one, and only on them.
+ */
+void test_a_fourth_protection_bit_is_seen_where_there_is_one(void)
+{
+    /* Status bit 5 alone: BP3 on a Macronix or an ISSI, half the chip. */
+    chip_reset(SPIF_MANUFACTURER_MACRONIX, CHIP_16MB);
+    mutex_created_at = NULL;
+    chip.bp          = 0x08U;
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_PROTECTED, spif_init(&flash, &test_spi, &test_cs_port, CS_PIN));
+
+    chip_reset(SPIF_MANUFACTURER_ISSI, CHIP_16MB);
+    mutex_created_at = NULL;
+    chip.bp          = 0x08U;
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_PROTECTED, spif_init(&flash, &test_spi, &test_cs_port, CS_PIN));
+
+    /* On a Winbond or a GigaDevice bits 5 and 6 only say which end BP0 to BP2
+       count from, and protect nothing without them. */
+    chip_reset(SPIF_MANUFACTURER_WINBOND, CHIP_16MB);
+    mutex_created_at = NULL;
+    chip.bp          = 0x18U;
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_init(&flash, &test_spi, &test_cs_port, CS_PIN));
+
+    chip_reset(SPIF_MANUFACTURER_GIGADEVICE, CHIP_16MB);
+    mutex_created_at = NULL;
+    chip.bp          = 0x18U;
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_init(&flash, &test_spi, &test_cs_port, CS_PIN));
+
+    /* Micron's N25Q and MT25Q have theirs in bit 6, and bit 5 is the end. */
+    chip_new(KIND_MICRON, SPIF_MANUFACTURER_MICRON, 0xBAU, CHIP_16MB, 0x1000000UL);
+    mutex_created_at = NULL;
+    chip.bp          = 0x10U;
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_PROTECTED, spif_init(&flash, &test_spi, &test_cs_port, CS_PIN));
+
+    chip_new(KIND_MICRON, SPIF_MANUFACTURER_MICRON, 0xBAU, CHIP_16MB, 0x1000000UL);
+    mutex_created_at = NULL;
+    chip.bp          = 0x08U;
+    TEST_ASSERT_EQUAL_INT(SPIF_ERR_NONE, spif_init(&flash, &test_spi, &test_cs_port, CS_PIN));
 }
 
 /*****************************************************************************************************/
@@ -2873,6 +2914,7 @@ int main(void)
     RUN_TEST(test_a_handle_full_of_rubbish_works_after_init);
 
     RUN_TEST(test_write_protection_is_reported);
+    RUN_TEST(test_a_fourth_protection_bit_is_seen_where_there_is_one);
     RUN_TEST(test_sst26_is_unlocked_at_init);
     RUN_TEST(test_at25df_is_unlocked_at_init);
     RUN_TEST(test_esmt_is_unlocked_at_init);
@@ -3319,7 +3361,7 @@ static uint8_t chip_status(void)
     }
     else
     {
-        status |= (uint8_t)((chip.bp & 0x07U) << 2U);
+        status |= (uint8_t)((chip.bp & 0x1FU) << 2U);
 
         /* A Spansion with an error stays busy until told. */
         if (chip.errors != 0U)

@@ -66,6 +66,8 @@
 /* Register bits. */
 #define SPIF_STATUS_BUSY            0x01U   /* Status 1: programming or erasing.          */
 #define SPIF_STATUS_BP              0x1CU   /* Status 1: BP0 to BP2, the same on all.     */
+#define SPIF_STATUS_BP3_BIT5        0x20U   /* Status 1: BP3 on Macronix and ISSI.        */
+#define SPIF_STATUS_BP3_BIT6        0x40U   /* Status 1: BP3 on Micron N25Q and MT25Q.    */
 #define SPIF_STATUS_SWP             0x0CU   /* AT25DF status: sectors protected.          */
 #define SPIF_STATUS_ERRORS          0x60U   /* Spansion status: program or erase refused. */
 #define SPIF_FLAG_READY             0x80U   /* Micron flag status: not busy.              */
@@ -776,8 +778,12 @@ spif_err_t spif_read_nb(spif_t *handle, uint32_t address, uint8_t *data, size_t 
     }
 
     /* What spif_wait() reports. A job started here, or one still running,
-       puts its own result over this when it ends. */
-    handle->job_result = err;
+       puts its own result over this when it ends. A call refused as busy
+       leaves it alone: that job, and its result, are another call's. */
+    if (err != SPIF_ERR_BUSY)
+    {
+        handle->job_result = err;
+    }
 
     return err;
 }
@@ -831,8 +837,12 @@ spif_err_t spif_write_nb(spif_t *handle, uint32_t address, const uint8_t *data, 
     }
 
     /* What spif_wait() reports. A job started here, or one still running,
-       puts its own result over this when it ends. */
-    handle->job_result = err;
+       puts its own result over this when it ends. A call refused as busy
+       leaves it alone: that job, and its result, are another call's. */
+    if (err != SPIF_ERR_BUSY)
+    {
+        handle->job_result = err;
+    }
 
     return err;
 }
@@ -1195,8 +1205,12 @@ static spif_err_t spif_erase_job(spif_t *handle, uint8_t command, uint32_t numbe
     }
 
     /* What spif_wait() reports. A job started here, or one still running,
-       puts its own result over this when it ends. */
-    handle->job_result = err;
+       puts its own result over this when it ends. A call refused as busy
+       leaves it alone: that job, and its result, are another call's. */
+    if (err != SPIF_ERR_BUSY)
+    {
+        handle->job_result = err;
+    }
 
     return err;
 }
@@ -1214,9 +1228,10 @@ static spif_err_t spif_job_page(spif_t *handle)
                                spif_chunk(handle->job_address, handle->job_left, SPIF_PAGE_SIZE));
 
 #if (SPIF_TRANSFER == SPIF_TRANSFER_DMA)
-    /* The DMA sends the data, and spif_process() lets the chip go once it has. */
-    handle->job_state   = SPIF_JOB_SEND;
-    handle->job_timeout = SPIF_TIMEOUT_TRANSFER_MS;
+    /* The DMA sends the data, and spif_process() lets the chip go once it
+       has. spif_moved() gives it SPIF_TIMEOUT_TRANSFER_MS, and the page's own
+       time is set once it is out. */
+    handle->job_state = SPIF_JOB_SEND;
 #else
     /* The chip stores the page now. */
     handle->job_state   = SPIF_JOB_PROGRAM;
@@ -1265,8 +1280,7 @@ static spif_err_t spif_job_receive(spif_t *handle)
         piece = SPIF_TRANSFER_LIMIT;
     }
 
-    handle->job_start   = HAL_GetTick();
-    handle->job_timeout = SPIF_TIMEOUT_TRANSFER_MS;
+    handle->job_start = HAL_GetTick();
 
     return spif_hal_error(HAL_SPI_Receive_DMA(handle->hspi, handle->job_data, (uint16_t)piece));
 }
@@ -2002,6 +2016,22 @@ static spif_err_t spif_unlock(spif_t *handle)
             {
                 mask = SPIF_STATUS_SWP;
             }
+        }
+        else if ((handle->manufacturer == SPIF_MANUFACTURER_MACRONIX) ||
+                 (handle->manufacturer == SPIF_MANUFACTURER_ISSI))
+        {
+            /* A fourth bit, which alone protects half the chip. On a Winbond
+               or a GigaDevice that bit only says which end BP0 to BP2 count
+               from, and protects nothing without them. */
+            mask |= SPIF_STATUS_BP3_BIT5;
+        }
+        else if (handle->family == SPIF_FAMILY_MICRON)
+        {
+            mask |= SPIF_STATUS_BP3_BIT6;
+        }
+        else
+        {
+            /* BP0 to BP2 are all there is. */
         }
 
         /* BP0 to BP2 set protect part or all of the chip, on every maker. */
